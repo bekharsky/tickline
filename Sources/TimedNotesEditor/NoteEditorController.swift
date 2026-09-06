@@ -9,8 +9,10 @@ import TimedNotesCore
 /// when hours or seconds are switched off.
 @MainActor
 public final class NoteEditorController: NSObject, ObservableObject, NSTextViewDelegate {
-    public let scrollView = NSScrollView()
     public let textView: NSTextView
+
+    /// The view to hand to SwiftUI: gutter and scrolling text side by side.
+    public var editorView: NSView { containerView }
 
     @Published public var format: StampFormat = .clock {
         didSet {
@@ -30,10 +32,14 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
         didSet { refreshGutter(resize: true) }
     }
 
+    let scrollView = NSScrollView()
+    let gutter = StampGutterView()
+
+    private let containerView: NoteEditorContainerView
     private let storage = NSTextStorage()
     private let layoutManager = NSLayoutManager()
     private let textContainer = NSTextContainer()
-    let gutter: StampRulerView
+    private let timedTextView: TimedTextView
 
     private var bookkeeper = StampBookkeeper()
     private var isLoading = false
@@ -44,8 +50,12 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
         storage.addLayoutManager(layoutManager)
         layoutManager.addTextContainer(textContainer)
 
-        textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 400), textContainer: textContainer)
-        gutter = StampRulerView(scrollView: scrollView)
+        timedTextView = TimedTextView(
+            frame: NSRect(x: 0, y: 0, width: 400, height: 400),
+            textContainer: textContainer
+        )
+        textView = timedTextView
+        containerView = NoteEditorContainerView(gutter: gutter, scrollView: scrollView)
 
         super.init()
 
@@ -64,23 +74,22 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
 
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true
-        scrollView.hasVerticalRuler = true
-        scrollView.verticalRulerView = gutter
-        scrollView.rulersVisible = true
         scrollView.drawsBackground = true
         scrollView.borderType = .noBorder
 
         gutter.controller = self
-        gutter.clientView = textView
 
-        // The gutter has to follow the text while scrolling.
+        // The gutter has to follow the text while scrolling and rewrapping.
         scrollView.contentView.postsBoundsChangedNotifications = true
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(contentBoundsDidChange),
-            name: NSView.boundsDidChangeNotification,
-            object: scrollView.contentView
-        )
+        textView.postsFrameChangedNotifications = true
+        for name in [NSView.boundsDidChangeNotification, NSView.frameDidChangeNotification] {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(redrawGutter),
+                name: name,
+                object: name == NSView.boundsDidChangeNotification ? scrollView.contentView : textView
+            )
+        }
 
         refreshGutter(resize: true)
     }
@@ -113,15 +122,22 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
         updateCaretState()
     }
 
-    public func stampedText() -> String {
-        NoteExporter.plainText(lines: lines(), format: format)
+    /// Text with the stamps put back in front of each line. Falls back to the
+    /// whole note when nothing is selected.
+    public func stampedText(selectionOnly: Bool) -> String {
+        let selected = selectionOnly
+            ? bookkeeper.lines(in: storage.string, clippedTo: textView.selectedRange())
+            : []
+        let lines = selected.isEmpty ? self.lines() : selected
+        return NoteExporter.plainText(lines: lines, format: format)
     }
 
     public func refreshGutter(resize: Bool) {
         if resize {
-            gutter.updateThickness(
-                sample: StampFormatter.widestSample(duration: timer?.duration ?? 3600, format: format)
-            )
+            let sample = StampFormatter.widestSample(duration: timer?.duration ?? 3600, format: format)
+            if gutter.updateWidth(sample: sample) {
+                containerView.needsLayout = true
+            }
         }
         gutter.needsDisplay = true
     }
@@ -143,7 +159,7 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
     }
 
     /// Vertical position of a paragraph's first line fragment, in text view
-    /// coordinates. A wrapped paragraph keeps one stamp, at its top.
+    /// coordinates. A wrapped or soft-broken paragraph keeps one stamp, at its top.
     func firstLineFragmentRect(forLine index: Int) -> NSRect {
         let range = bookkeeper.paragraphs.range(forLine: index)
         let fallbackHeight = layoutManager.defaultLineHeight(for: textView.font ?? .systemFont(ofSize: 14))
@@ -199,7 +215,7 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
 
     // MARK: - Internals
 
-    @objc private func contentBoundsDidChange() {
+    @objc private func redrawGutter() {
         gutter.needsDisplay = true
     }
 

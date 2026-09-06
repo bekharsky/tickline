@@ -91,10 +91,12 @@ final class AppModel: ObservableObject {
 
     // MARK: - Output
 
+    /// Copies the selected lines with their stamps, or the whole note when
+    /// nothing is selected.
     func copyWithStamps() {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(editor.stampedText(), forType: .string)
+        pasteboard.setString(editor.stampedText(selectionOnly: true), forType: .string)
     }
 
     func exportToFile() {
@@ -102,6 +104,6 @@ final class AppModel: ObservableObject {
         panel.nameFieldStringValue = "timed-note.txt"
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? editor.stampedText().write(to: url, atomically: true, encoding: .utf8)
+        try? editor.stampedText(selectionOnly: false).write(to: url, atomically: true, encoding: .utf8)
     }
 }

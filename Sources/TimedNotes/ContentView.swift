@@ -36,7 +36,7 @@ private struct TimerControls: View {
             Button(action: timer.toggle) {
                 Image(systemName: timer.phase.isActive ? "pause.fill" : "play.fill")
             }
-            .help(timer.phase.isActive ? "Pause the timer (⌘⏎)" : "Start the timer (⌘⏎)")
+            .help(timer.phase.isActive ? "Pause the timer (⇧⌘P)" : "Start the timer (⇧⌘P)")
 
             Button {
                 timer.reset()

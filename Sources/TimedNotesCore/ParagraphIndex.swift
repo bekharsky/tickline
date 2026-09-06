@@ -2,10 +2,14 @@ import Foundation
 
 /// Paragraph ranges of the note text, excluding the trailing newline of each.
 ///
-/// A note with N line breaks always has N + 1 paragraphs, including a final
-/// empty one after a trailing newline — that empty line is where the writer is
-/// about to type, so it needs a stamp like any other.
+/// A note with N hard breaks always has N + 1 paragraphs, including a final empty
+/// one after a trailing newline — that empty line is where the writer is about to
+/// type, so it needs a stamp like any other. Soft breaks stay inside a paragraph
+/// and therefore keep its stamp.
 public struct ParagraphIndex: Equatable {
+    /// Breaks a line visually without starting a new paragraph (U+2028).
+    public static let softLineBreak: Character = "\u{2028}"
+
     public private(set) var ranges: [NSRange]
 
     public init(text: String = "") {
@@ -47,34 +51,43 @@ public struct ParagraphIndex: Equatable {
         return first..<min(count, max(first, last) + 1)
     }
 
+    /// Counts only hard breaks, the ones that create paragraphs. Soft breaks are
+    /// deliberately ignored here and in `compute`, or the two would disagree.
     public static func lineBreakCount(in string: String) -> Int {
-        string.reduce(into: 0) { count, character in
-            if character.isNewline {
-                count += 1
-            }
-        }
+        var count = 0
+        enumerateHardBreaks(in: string as NSString) { _, _ in count += 1 }
+        return count
     }
 
     private static func compute(_ string: String) -> [NSRange] {
         let text = string as NSString
         var ranges: [NSRange] = []
         var start = 0
-        var index = 0
 
-        while index < text.length {
-            let character = text.character(at: index)
-            if character == 0x0A || character == 0x0D {
-                ranges.append(NSRange(location: start, length: index - start))
-                // Treat CRLF as one break.
-                if character == 0x0D, index + 1 < text.length, text.character(at: index + 1) == 0x0A {
-                    index += 1
-                }
-                start = index + 1
-            }
-            index += 1
+        enumerateHardBreaks(in: text) { breakStart, nextStart in
+            ranges.append(NSRange(location: start, length: breakStart - start))
+            start = nextStart
         }
 
         ranges.append(NSRange(location: start, length: text.length - start))
         return ranges
+    }
+
+    /// Walks line feeds and carriage returns, treating CRLF as one break.
+    private static func enumerateHardBreaks(in text: NSString, body: (Int, Int) -> Void) {
+        var index = 0
+        while index < text.length {
+            let character = text.character(at: index)
+            if character == 0x0A || character == 0x0D {
+                var nextStart = index + 1
+                if character == 0x0D, nextStart < text.length, text.character(at: nextStart) == 0x0A {
+                    nextStart += 1
+                }
+                body(index, nextStart)
+                index = nextStart
+            } else {
+                index += 1
+            }
+        }
     }
 }

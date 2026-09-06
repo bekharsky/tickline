@@ -18,13 +18,16 @@ struct TimedNotesApp: App {
                 Button("New Session…") { model.startNewSession() }
                     .keyboardShortcut("n")
             }
+            CommandGroup(after: .pasteboard) {
+                Divider()
+                Button("Copy with Timestamps") { model.copyWithStamps() }
+                    .keyboardShortcut("c", modifiers: [.command, .shift])
+            }
             CommandMenu("Timer") {
                 TimerCommands(timer: model.timer)
                 Divider()
                 DetailCommands(editor: model.editor)
                 Divider()
-                Button("Copy with Timestamps") { model.copyWithStamps() }
-                    .keyboardShortcut("c", modifiers: [.command, .shift])
                 Button("Export…") { model.exportToFile() }
                     .keyboardShortcut("e")
             }
@@ -49,8 +52,10 @@ private struct TimerCommands: View {
     @ObservedObject var timer: TimerEngine
 
     var body: some View {
+        // Not ⌘⏎: that belongs to the editor, where it breaks a line without
+        // starting a new stamp.
         Button(actionTitle) { timer.toggle() }
-            .keyboardShortcut(.return, modifiers: .command)
+            .keyboardShortcut("p", modifiers: [.command, .shift])
         Button("Reset Timer") { timer.reset() }
             .keyboardShortcut("r", modifiers: [.command, .shift])
             .disabled(timer.phase == .idle)

@@ -39,6 +39,37 @@ public struct StampBookkeeper {
         }
     }
 
+    /// Lines overlapping a selection, with the boundary lines cut down to what
+    /// is actually selected. Each keeps its own stamp.
+    public func lines(in text: String, clippedTo selection: NSRange) -> [NoteSnapshot.Line] {
+        guard selection.length > 0 else { return [] }
+
+        let text = text as NSString
+        var result: [NoteSnapshot.Line] = []
+
+        for index in paragraphs.indexRange(intersecting: selection) {
+            let paragraph = paragraphs.range(forLine: index)
+            let start = max(paragraph.location, selection.location)
+            let end = min(NSMaxRange(paragraph), NSMaxRange(selection))
+            guard start <= end, end <= text.length else { continue }
+
+            if start == end {
+                // Only an empty line genuinely inside the selection counts; a
+                // selection ending at a line boundary must not pull it in.
+                guard paragraph.length == 0, paragraph.location < NSMaxRange(selection) else { continue }
+            }
+
+            result.append(
+                NoteSnapshot.Line(
+                    text: text.substring(with: NSRange(location: start, length: end - start)),
+                    stamp: table.stamp(forLine: index)
+                )
+            )
+        }
+
+        return result
+    }
+
     public mutating func prepareEdit(
         currentText: String,
         affectedRange: NSRange,

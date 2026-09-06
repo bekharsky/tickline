@@ -36,10 +36,15 @@ public struct NoteSnapshot: Codable, Equatable {
 
 public enum NoteExporter {
     /// Renders the note as plain text with the stamps put back in front of each
-    /// line, right-aligned so the text column stays straight.
+    /// line, right-aligned so the text column stays straight. Soft breaks become
+    /// real newlines indented under that column, keeping one stamp per line.
     public static func plainText(lines: [NoteSnapshot.Line], format: StampFormat) -> String {
+        let softBreak = String(ParagraphIndex.softLineBreak)
+
         guard !format.isEmpty else {
-            return lines.map(\.text).joined(separator: "\n")
+            return lines
+                .map { $0.text.replacingOccurrences(of: softBreak, with: "\n") }
+                .joined(separator: "\n")
         }
 
         let stamps = lines.map { line in
@@ -48,11 +53,17 @@ public enum NoteExporter {
         }
         let width = stamps.map(\.count).max() ?? 0
 
-        return zip(stamps, lines).map { stamp, line in
+        var output: [String] = []
+        for (stamp, line) in zip(stamps, lines) {
             let padded = String(repeating: " ", count: width - stamp.count) + stamp
-            return "[\(padded)] \(line.text)"
+            let prefix = "[\(padded)] "
+            let parts = line.text.components(separatedBy: softBreak)
+
+            output.append(prefix + (parts.first ?? ""))
+            let continuation = String(repeating: " ", count: prefix.count)
+            output.append(contentsOf: parts.dropFirst().map { continuation + $0 })
         }
-        .joined(separator: "\n")
+        return output.joined(separator: "\n")
     }
 }
 
