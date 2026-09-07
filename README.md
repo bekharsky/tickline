@@ -145,6 +145,15 @@ Xcode Cloud uses `ci_scripts/ci_post_clone.sh` to write
 the release source of truth, while the value in `AppInfo.xcconfig` is a local
 fallback.
 
+The App Store marketing version lives in the same config. Bump it before a
+release with one of:
+
+```sh
+./bump-version.sh --patch
+./bump-version.sh --minor
+./bump-version.sh --major
+```
+
 The packaging script reads `AppInfo.xcconfig` first and `Local.xcconfig` second,
 so anything in the local file wins. Copy `Local.xcconfig.example` to
 `Local.xcconfig` to override the bundle identifier, copyright, team, or signing
