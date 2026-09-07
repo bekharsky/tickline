@@ -36,6 +36,10 @@ BUNDLE_IDENTIFIER="$(read_setting APP_PRODUCT_BUNDLE_IDENTIFIER)"
 BUNDLE_IDENTIFIER="${BUNDLE_IDENTIFIER:-com.example.tickline}"
 COPYRIGHT="$(read_setting APP_PRODUCT_COPYRIGHT)"
 CODE_SIGN_IDENTITY="$(read_setting APP_CODE_SIGN_IDENTITY)"
+MARKETING_VERSION="$(read_setting MARKETING_VERSION)"
+MARKETING_VERSION="${MARKETING_VERSION:-1.0}"
+BUILD_NUMBER="$(read_setting CURRENT_PROJECT_VERSION)"
+BUILD_NUMBER="${BUILD_NUMBER:-1}"
 
 swift build -c "$CONFIGURATION" --product "$PRODUCT_NAME"
 
@@ -64,6 +68,8 @@ cp "$INFO_TEMPLATE" "$INFO_PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleName $DISPLAY_NAME" "$INFO_PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $DISPLAY_NAME" "$INFO_PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_IDENTIFIER" "$INFO_PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING_VERSION" "$INFO_PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$INFO_PLIST"
 
 if [[ -n "$COPYRIGHT" ]]; then
     /usr/libexec/PlistBuddy -c "Set :NSHumanReadableCopyright $COPYRIGHT" "$INFO_PLIST" 2>/dev/null \

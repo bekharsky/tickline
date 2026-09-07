@@ -131,12 +131,27 @@ swift test                      # libraries + editor tests, no UI session needed
 open dist/Tickline.app
 ```
 
+For an Xcode/App Store build, use the shared `Tickline` scheme:
+
+```sh
+xcodebuild -project Tickline.xcodeproj -scheme Tickline \
+  -destination 'platform=macOS' test
+xcodebuild -project Tickline.xcodeproj -scheme Tickline \
+  -configuration Release archive
+```
+
+Xcode Cloud uses `ci_scripts/ci_post_clone.sh` to write
+`CI_BUILD_NUMBER` into `CURRENT_PROJECT_VERSION`; the cloud build number is
+the release source of truth, while the value in `AppInfo.xcconfig` is a local
+fallback.
+
 The packaging script reads `AppInfo.xcconfig` first and `Local.xcconfig` second,
 so anything in the local file wins. Copy `Local.xcconfig.example` to
-`Local.xcconfig` to set your own `APP_PRODUCT_BUNDLE_IDENTIFIER`, copyright and
-signing identity; the identifier ends up as the app's `CFBundleIdentifier`.
-`Local.xcconfig` is gitignored, so the repository keeps a neutral
-`com.example.tickline` default.
+`Local.xcconfig` to override the bundle identifier, copyright, team, or signing
+identity on one machine. `Local.xcconfig` is gitignored and is never needed by
+Xcode Cloud. The production bundle identifier and Team ID in `AppInfo.xcconfig`
+are public application metadata; certificates and private keys remain in the
+developer keychain and Apple services.
 
 Requires macOS 13 or later.
 

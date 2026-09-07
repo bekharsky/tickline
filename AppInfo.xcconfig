@@ -1,11 +1,18 @@
 PRODUCT_NAME = Tickline
 APP_DISPLAY_NAME = Tickline
 
-APP_PRODUCT_BUNDLE_IDENTIFIER = com.example.tickline
-APP_PRODUCT_COPYRIGHT = Copyright © 2026 Your Name. All rights reserved.
+// Public application identity. Bundle identifiers and Team IDs are metadata,
+// not credentials; private signing material stays in Xcode/Apple services.
+APP_PRODUCT_BUNDLE_IDENTIFIER = com.kharion.tickline
+APP_PRODUCT_COPYRIGHT = Copyright © 2026 Kharion. All rights reserved.
+
+// App Store version and local fallback build number. Xcode Cloud replaces the
+// build number with CI_BUILD_NUMBER in ci_scripts/ci_post_clone.sh.
+MARKETING_VERSION = 1.0
+CURRENT_PROJECT_VERSION = 1
 
 APP_CODE_SIGN_STYLE = Automatic
-APP_DEVELOPMENT_TEAM =
+APP_DEVELOPMENT_TEAM = DSP3NSS4L8
 APP_PROVISIONING_PROFILE_SPECIFIER =
 APP_CODE_SIGN_IDENTITY =
 
@@ -16,4 +23,3 @@ PRODUCT_COPYRIGHT = $(APP_PRODUCT_COPYRIGHT)
 CODE_SIGN_STYLE = $(APP_CODE_SIGN_STYLE)
 DEVELOPMENT_TEAM = $(APP_DEVELOPMENT_TEAM)
 PROVISIONING_PROFILE_SPECIFIER = $(APP_PROVISIONING_PROFILE_SPECIFIER)
-CODE_SIGN_IDENTITY = $(APP_CODE_SIGN_IDENTITY)
