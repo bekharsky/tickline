@@ -55,13 +55,28 @@ final class StampBookkeeperTests: XCTestCase {
         XCTAssertEqual(editor.stamps, [3600, 3000])
     }
 
-    func testLinesWrittenBeforeTheTimerHaveNoStampUntilWritingContinues() {
+    func testTextWrittenBeforeTheTimerStaysUnstamped() {
         var editor = EditorHarness()
         editor.type("draft before start", remaining: nil)
         XCTAssertEqual(editor.stamps, [nil])
 
+        // Starting the timer and carrying on must not backdate the old line.
         editor.type("!", remaining: 3600)
-        XCTAssertEqual(editor.stamps, [3600], "the line really begins when the timer is running")
+        editor.replace(NSRange(location: 0, length: 5), with: "DRAFT", remaining: 3500)
+        XCTAssertEqual(editor.stamps, [nil])
+
+        editor.type("\n", remaining: 3400)
+        editor.type("now the timer is running", remaining: 3399)
+        XCTAssertEqual(editor.stamps, [nil, 3400], "only lines started under the timer get stamps")
+    }
+
+    /// The first line of a fresh note is empty, so writing on it is where it
+    /// begins — otherwise it could never be stamped at all.
+    func testFirstWordOnAnEmptyLineStampsIt() {
+        var editor = EditorHarness()
+        editor.type("hello", remaining: 3600)
+
+        XCTAssertEqual(editor.stamps, [3600])
     }
 
     func testTrailingNewlineLeavesAStampedEmptyLineToWriteOn() {

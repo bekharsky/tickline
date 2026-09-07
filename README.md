@@ -28,8 +28,9 @@ is only a redraw.
   visual row but stays in the same paragraph, so it keeps the stamp it already
   has. ⌥Return does the same.
 - **Pasting a block** stamps every line it creates with the current time left.
-- **A line written before the timer started** has no stamp and shows `--:--:--`.
-  It gets a real one the moment you keep writing on it with the timer running.
+- **A line written before the timer started** has no stamp, shows `--:--:--` and
+  keeps it that way. Editing it later never backdates it; only lines you start
+  under a running timer get a time.
 - **Overtime keeps counting.** After the bell, stamps go negative instead of
   stopping at zero.
 

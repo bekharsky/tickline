@@ -91,9 +91,14 @@ public struct StampBookkeeper {
             newStamp: stamp
         )
 
-        // A line started before the timer was running has no stamp. Writing into
-        // it while the timer runs is the moment that line really begins.
-        if !replacement.isEmpty, table.stamp(forLine: startLine) == nil, let stamp {
+        // An empty line gets its stamp from the first thing written on it — that
+        // is how the very first line of a note is stamped. A line that already
+        // holds text keeps whatever it has, so text written before the timer
+        // stays unstamped no matter how much it is edited later.
+        if !replacement.isEmpty,
+           table.stamp(forLine: startLine) == nil,
+           paragraphs.range(forLine: startLine).length == 0,
+           let stamp {
             table.setStamp(stamp, forLine: startLine)
         }
     }
