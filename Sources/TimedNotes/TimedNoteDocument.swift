@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 extension UTType {
     /// Older notes used a private `.timednote` extension. The bytes are still
     /// Markdown; this type only exists so Finder can hand those files back.
-    static let legacyTimedNote = UTType(importedAs: "com.kharkion.timednotes.note")
+    static let legacyTimedNote = UTType(importedAs: "com.kharion.tickline.legacy-note")
 }
 
 /// One note, one timer, one window.

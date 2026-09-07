@@ -108,8 +108,12 @@ swift test                      # libraries + editor tests, no UI session needed
 open dist/Tickline.app
 ```
 
-To sign with your own identity, copy `Local.xcconfig.example` to
-`Local.xcconfig` and fill it in. That file is gitignored.
+The packaging script reads `AppInfo.xcconfig` first and `Local.xcconfig` second,
+so anything in the local file wins. Copy `Local.xcconfig.example` to
+`Local.xcconfig` to set your own `APP_PRODUCT_BUNDLE_IDENTIFIER`, copyright and
+signing identity; the identifier ends up as the app's `CFBundleIdentifier`.
+`Local.xcconfig` is gitignored, so the repository keeps a neutral
+`com.example.tickline` default.
 
 Requires macOS 13 or later.
 

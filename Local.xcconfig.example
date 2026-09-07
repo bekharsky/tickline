@@ -1,5 +1,10 @@
-// Copy to Local.xcconfig to sign the bundle with your own identity.
-// Local.xcconfig is gitignored.
+// Copy to Local.xcconfig to build with your own identifier and signing.
+// Local.xcconfig is gitignored and wins over AppInfo.xcconfig.
 
-APP_PRODUCT_BUNDLE_IDENTIFIER = com.yourname.tickline
+APP_PRODUCT_BUNDLE_IDENTIFIER = com.kharion.tickline
+APP_PRODUCT_COPYRIGHT = Copyright © 2026 Ilia Bekharsky. All rights reserved.
+
+APP_CODE_SIGN_STYLE = Automatic
+APP_DEVELOPMENT_TEAM =
+APP_PROVISIONING_PROFILE_SPECIFIER =
 APP_CODE_SIGN_IDENTITY = Developer ID Application: Your Name (TEAMID)

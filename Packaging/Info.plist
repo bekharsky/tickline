@@ -7,7 +7,7 @@
     <key>CFBundleExecutable</key>
     <string>Tickline</string>
     <key>CFBundleIdentifier</key>
-    <string>com.kharkion.tickline</string>
+    <string>com.example.tickline</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
@@ -64,7 +64,7 @@
             <string>Alternate</string>
             <key>LSItemContentTypes</key>
             <array>
-                <string>com.kharkion.timednotes.note</string>
+                <string>com.kharion.tickline.legacy-note</string>
             </array>
         </dict>
     </array>
@@ -72,7 +72,7 @@
     <array>
         <dict>
             <key>UTTypeIdentifier</key>
-            <string>com.kharkion.timednotes.note</string>
+            <string>com.kharion.tickline.legacy-note</string>
             <key>UTTypeDescription</key>
             <string>Tickline Note</string>
             <key>UTTypeConformsTo</key>
