@@ -1,7 +1,7 @@
-PRODUCT_NAME = TimedNotes
-APP_DISPLAY_NAME = Timed Notes
+PRODUCT_NAME = Tickline
+APP_DISPLAY_NAME = Tickline
 
-APP_PRODUCT_BUNDLE_IDENTIFIER = com.kharkion.timednotes
+APP_PRODUCT_BUNDLE_IDENTIFIER = com.kharkion.tickline
 APP_PRODUCT_COPYRIGHT = Copyright © 2026 Ilia Bekharsky. All rights reserved.
 
 APP_CODE_SIGN_IDENTITY =

@@ -1,4 +1,4 @@
-# Timed Notes
+# Tickline
 
 A native macOS notepad on a countdown. Start a timer, write, and every new line
 is marked with the time that was left when you began it.
@@ -44,13 +44,14 @@ is only a redraw.
 | --- | --- |
 | ▶︎ / ▮▮ | Start, pause, resume (⇧⌘P) |
 | ↺ | Reset the timer (⇧⌘R) |
-| ⏱ `1:00:00` | Set the duration. Changing it mid-session moves the deadline by the difference |
-| `H` `m` `s` `.1` | Which units the line stamps show (⌘1 … ⌘4) |
-| ⌖ | Restore full precision (⌘0). ⌘9 drops back to minutes only |
+| ⏱ `1:00:00` | The countdown, and the place to set the duration. Changing it mid-session moves the deadline by the difference |
 | ⧉ | Copy with timestamps exactly as shown (⇧⌘C) |
 
-Turning a larger unit off rolls it into the next one: with `H` off, an hour left
-reads as `60` minutes, not `00`. Turning everything off hides the gutter.
+Stamp detail lives in the status bar: click `h:m:s` for Hours, Minutes, Seconds,
+and Tenths (⌘1 … ⌘4). Exact time is ⌘0; minutes only is ⌘9.
+
+Turning a larger unit off rolls it into the next one: with hours off, an hour
+left reads as `60` minutes, not `00`. Turning everything off hides the gutter.
 
 **Copy with Timestamps** — the ⧉ button, ⇧⌘C, or the Edit menu — puts the stamps
 back in front of the lines you selected, cutting the first and last line down to
@@ -65,9 +66,11 @@ column, so one screen line stays one line of output.
 
 ## Files
 
-Notes are ordinary documents: ⌘N, ⌘O, ⌘S, Save As, several windows at once, each
-with its own timer. A note is saved as `.timednote`, which is Markdown inside, so
-any editor or Quick Look can read it:
+Notes are ordinary Markdown documents: ⌘N, ⌘O, ⌘S, Save As, several windows at
+once, each with its own timer. Tickline does not invent an extension. It writes
+`.md`, and on open it looks at the text: a front matter block and `[HH:MM:SS.mmm]`
+prefixes are a timed note, everything else is unstamped Markdown. Any editor or
+Quick Look can read the file:
 
 ```
 ---
@@ -82,11 +85,11 @@ detail: h:m
 [--:--:--.---] jotted down before the timer started
 ```
 
-Stamps in the file are always written at full precision, whatever the toolbar
+Stamps in the file are always written at full precision, whatever the status bar
 shows, so the detail level stays free to change after reopening. The front matter
 carries the timer setup, and lines you broke with ⌘Return come back indented.
-Plain `.txt` and `.md` files open too: lines with a `[HH:MM:SS.mmm]` prefix keep
-their stamps, everything else becomes unstamped lines.
+Older `.timednote` files still open: they are the same Markdown under a private
+extension.
 
 A reopened note starts **paused** — real time passed while the file was closed,
 and pretending otherwise would corrupt every later stamp.
@@ -100,9 +103,9 @@ plain text.
 
 ```sh
 swift build                     # libraries + app
-swift test                      # 53 tests, no UI session needed
-./Packaging/build-app.sh        # dist/TimedNotes.app, ad-hoc signed
-open dist/TimedNotes.app
+swift test                      # libraries + editor tests, no UI session needed
+./Packaging/build-app.sh        # dist/Tickline.app, ad-hoc signed
+open dist/Tickline.app
 ```
 
 To sign with your own identity, copy `Local.xcconfig.example` to
@@ -116,7 +119,7 @@ Requires macOS 13 or later.
 | --- | --- |
 | `TimedNotesCore` | Timer, stamp formatting, and the bookkeeping that keeps stamps aligned with the text through arbitrary edits. No UI. |
 | `TimedNotesEditor` | The AppKit text view and the gutter that draws the stamps. The gutter is a plain sibling view with its own layout, not an `NSRulerView`: the ruler tiling machinery fights SwiftUI's sizing of the scroll view and offsets the clip view until the text stops being drawn at all. |
-| `TimedNotes` | SwiftUI app, toolbar, menu commands, autosave. |
+| `TimedNotes` | SwiftUI app, toolbar, menu commands. The product name on disk is Tickline. |
 
 The split exists so the risky parts can be tested: `StampBookkeeperTests` replays
 real typing sequences, `TypingTests` types into a live text view, and

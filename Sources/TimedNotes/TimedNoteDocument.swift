@@ -6,9 +6,9 @@ import TimedNotesEditor
 import UniformTypeIdentifiers
 
 extension UTType {
-    /// Markdown inside, so any editor can read it; its own extension outside, so
-    /// Timed Notes does not claim every text file on the disk.
-    static let timedNote = UTType(exportedAs: "com.kharkion.timednotes.note", conformingTo: .plainText)
+    /// Older notes used a private `.timednote` extension. The bytes are still
+    /// Markdown; this type only exists so Finder can hand those files back.
+    static let legacyTimedNote = UTType(importedAs: "com.kharkion.timednotes.note")
 }
 
 /// One note, one timer, one window.
@@ -20,8 +20,16 @@ extension UTType {
 final class TimedNoteDocument: ReferenceFileDocument {
     typealias Snapshot = NoteSnapshot
 
-    static var readableContentTypes: [UTType] { [.timedNote, .plainText] }
-    static var writableContentTypes: [UTType] { [.timedNote] }
+    /// Save as ordinary Markdown. The timer and stamps live in the text, so
+    /// the filename does not have to advertise the format.
+    static var readableContentTypes: [UTType] {
+        [Self.markdownType, .plainText, .legacyTimedNote]
+    }
+    static var writableContentTypes: [UTType] { [Self.markdownType] }
+
+    /// `UTType.markdown` is not always in the SDK this package builds against.
+    /// The filename tag is enough: `.md` is Markdown everywhere that matters.
+    private static let markdownType = UTType(filenameExtension: "md") ?? .plainText
 
     /// Bumped on every change so SwiftUI knows the document needs saving.
     @Published private(set) var revision = 0
@@ -73,7 +81,7 @@ final class TimedNoteDocument: ReferenceFileDocument {
     @MainActor
     func exportToFile() {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "timed-note.txt"
+        panel.nameFieldStringValue = "tickline.txt"
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
         try? editor.stampedText(selectionOnly: false).write(to: url, atomically: true, encoding: .utf8)

@@ -8,7 +8,7 @@ let package = Package(
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "TimedNotes", targets: ["TimedNotes"])
+        .executable(name: "Tickline", targets: ["TimedNotes"])
     ],
     targets: [
         // Timer, stamps and their bookkeeping. No UI, fully testable.

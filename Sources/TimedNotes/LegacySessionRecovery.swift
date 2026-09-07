@@ -14,7 +14,7 @@ enum LegacySessionRecovery {
 
         let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        let url = directory.appendingPathComponent("Recovered session.timednote")
+        let url = directory.appendingPathComponent("Recovered session.md")
 
         do {
             try MarkdownNote.text(for: snapshot).write(to: url, atomically: true, encoding: .utf8)
@@ -25,8 +25,8 @@ enum LegacySessionRecovery {
         let alert = NSAlert()
         alert.messageText = "Your previous note was saved as a file"
         alert.informativeText = """
-            Notes are documents now. The note from the old single-session storage \
-            is at \(url.path).
+            Notes are Markdown documents now. The note from the old single-session \
+            storage is at \(url.path).
             """
         alert.addButton(withTitle: "Open It")
         alert.addButton(withTitle: "Later")
