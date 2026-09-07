@@ -145,6 +145,10 @@ Xcode Cloud uses `ci_scripts/ci_post_clone.sh` to write
 the release source of truth, while the value in `AppInfo.xcconfig` is a local
 fallback.
 
+The App Store archive workflow watches the `release` branch. Normal development
+lands on `main`; merge `main` into `release` when a version is ready to produce
+the signed release archive.
+
 The App Store marketing version lives in the same config. Bump it before a
 release with one of:
 
