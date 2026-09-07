@@ -112,9 +112,9 @@ final class TypingTests: XCTestCase {
         let controller = makeController()
         controller.format = .minutesOnly
         controller.load(lines: [
-            NoteSnapshot.Line(text: "first", stamp: LineStamp(remaining: 3600, wallClock: Date())),
-            NoteSnapshot.Line(text: "second", stamp: LineStamp(remaining: 3000, wallClock: Date())),
-            NoteSnapshot.Line(text: "third", stamp: LineStamp(remaining: 60, wallClock: Date()))
+            NoteSnapshot.Line(text: "first", stamp: LineStamp(remaining: 3600)),
+            NoteSnapshot.Line(text: "second", stamp: LineStamp(remaining: 3000)),
+            NoteSnapshot.Line(text: "third", stamp: LineStamp(remaining: 60))
         ])
 
         // Select the middle line only ("second" starts after "first\n").
@@ -129,13 +129,32 @@ final class TypingTests: XCTestCase {
         )
     }
 
+    /// Copying follows the toolbar, not the file: the millisecond precision kept
+    /// on disk must never end up in the pasteboard.
+    func testCopyFollowsTheDetailShownOnScreen() {
+        let controller = makeController()
+        controller.load(lines: [NoteSnapshot.Line(text: "note", stamp: LineStamp(remaining: 2718.394))])
+
+        controller.format = .minutesOnly
+        XCTAssertEqual(controller.stampedText(selectionOnly: false), "[45] note")
+
+        controller.format = .clock
+        XCTAssertEqual(controller.stampedText(selectionOnly: false), "[00:45:18] note")
+
+        controller.format = .exact
+        XCTAssertEqual(controller.stampedText(selectionOnly: false), "[00:45:18.3] note")
+
+        controller.format = StampFormat(hours: false, minutes: false, seconds: false)
+        XCTAssertEqual(controller.stampedText(selectionOnly: false), "note", "no units, no clutter")
+    }
+
     func testExportIndentsSoftBrokenLinesUnderTheStamp() throws {
         let controller = makeController()
         controller.format = .minutesOnly
         // A fixed stamp instead of a live timer: this is about the layout of the
         // exported text, not about the clock.
         controller.load(lines: [
-            NoteSnapshot.Line(text: "head", stamp: LineStamp(remaining: 3600, wallClock: Date()))
+            NoteSnapshot.Line(text: "head", stamp: LineStamp(remaining: 3600))
         ])
 
         let textView = try XCTUnwrap(controller.textView as? TimedTextView)

@@ -42,32 +42,60 @@ is only a redraw.
 | ⏱ `1:00:00` | Set the duration. Changing it mid-session moves the deadline by the difference |
 | `H` `m` `s` `.1` | Which units the line stamps show (⌘1 … ⌘4) |
 | ⌖ | Restore full precision (⌘0). ⌘9 drops back to minutes only |
+| ⧉ | Copy with timestamps exactly as shown (⇧⌘C) |
 
 Turning a larger unit off rolls it into the next one: with `H` off, an hour left
 reads as `60` minutes, not `00`. Turning everything off hides the gutter.
 
-**Copy with Timestamps** (⇧⌘C, in the Edit menu) puts the stamps back in front of
-the lines you selected, cutting the first and last line down to the selection and
-keeping their stamps. With nothing selected it copies the whole note. **Export…**
-(⌘E) writes the same thing to a file, and **New Session** (⌘N) starts over. Both
-use the detail level currently on screen; a plain ⌘C still copies the text alone.
+**Copy with Timestamps** — the ⧉ button, ⇧⌘C, or the Edit menu — puts the stamps
+back in front of the lines you selected, cutting the first and last line down to
+the selection and keeping their stamps. With nothing selected it copies the whole
+note. It always uses the detail on screen, never the full precision from the
+file, so pasting minutes-only notes elsewhere stays clean; with every unit off it
+copies bare text. A plain ⌘C still copies the text alone, and **Export as Text…**
+(⌘E) writes the stamped version to any file.
 
-A line broken with ⌘Return is exported as a real newline indented under the stamp
+A line broken with ⌘Return is copied as a real newline indented under the stamp
 column, so one screen line stays one line of output.
 
-## Session storage
+## Files
 
-One note, autosaved to
-`~/Library/Application Support/TimedNotes/session.json` a second or so after you
-stop typing and again on quit. Reopening restores the text, the stamps and the
-detail level, with the timer **paused** — real time passed while the app was
-closed, and pretending otherwise would corrupt every later stamp.
+Notes are ordinary documents: ⌘N, ⌘O, ⌘S, Save As, several windows at once, each
+with its own timer. A note is saved as `.timednote`, which is Markdown inside, so
+any editor or Quick Look can read it:
+
+```
+---
+timer: 01:00:00
+remaining: 00:41:12.400
+detail: H:m
+---
+
+[00:59:56.246] started the review
+[00:58:12.900] the numbers in section 3 do not add up
+               checked twice, still off by 400
+[--:--:--.---] jotted down before the timer started
+```
+
+Stamps in the file are always written at full precision, whatever the toolbar
+shows, so the detail level stays free to change after reopening. The front matter
+carries the timer setup, and lines you broke with ⌘Return come back indented.
+Plain `.txt` and `.md` files open too: lines with a `[HH:MM:SS.mmm]` prefix keep
+their stamps, everything else becomes unstamped lines.
+
+A reopened note starts **paused** — real time passed while the file was closed,
+and pretending otherwise would corrupt every later stamp.
+
+Two things the file does not carry: the calendar time each line was written (it
+records offsets from the timer instead), and shortened stamps like `[45]` from a
+copied note, which are ambiguous between minutes and seconds and so are read as
+plain text.
 
 ## Build and run
 
 ```sh
 swift build                     # libraries + app
-swift test                      # 42 tests, no UI session needed
+swift test                      # 53 tests, no UI session needed
 ./Packaging/build-app.sh        # dist/TimedNotes.app, ad-hoc signed
 open dist/TimedNotes.app
 ```
@@ -93,6 +121,5 @@ returning.
 
 ## Known gaps
 
-- One note only. There is no session history or multiple documents yet.
 - Undo restores the text, but a line recreated by undo is stamped with the time
   at which you pressed undo, not its original one.

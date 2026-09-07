@@ -4,47 +4,62 @@ import TimedNotesEditor
 
 @main
 struct TimedNotesApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var model = AppModel()
+    init() {
+        LegacySessionRecovery.runOnce()
+    }
 
     var body: some Scene {
-        WindowGroup("Timed Notes") {
-            ContentView(model: model)
-                .onAppear { appDelegate.model = model }
+        // SwiftUI creates documents on the main thread; saying so keeps the
+        // main-actor document out of a nonisolated closure.
+        DocumentGroup(newDocument: { MainActor.assumeIsolated { TimedNoteDocument() } }) { configuration in
+            ContentView(document: configuration.document)
         }
-        .defaultSize(width: 760, height: 560)
         .commands {
-            CommandGroup(replacing: .newItem) {
-                Button("New Session…") { model.startNewSession() }
-                    .keyboardShortcut("n")
-            }
             CommandGroup(after: .pasteboard) {
                 Divider()
-                Button("Copy with Timestamps") { model.copyWithStamps() }
-                    .keyboardShortcut("c", modifiers: [.command, .shift])
+                CopyCommands()
             }
             CommandMenu("Timer") {
-                TimerCommands(timer: model.timer)
-                Divider()
-                DetailCommands(editor: model.editor)
-                Divider()
-                Button("Export…") { model.exportToFile() }
-                    .keyboardShortcut("e")
+                TimerMenu()
             }
         }
     }
 }
 
-@MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    var model: AppModel?
+/// Lets the menu bar act on whichever note window is in front.
+private struct FocusedDocumentKey: FocusedValueKey {
+    typealias Value = TimedNoteDocument
+}
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+extension FocusedValues {
+    var timedNote: TimedNoteDocument? {
+        get { self[FocusedDocumentKey.self] }
+        set { self[FocusedDocumentKey.self] = newValue }
     }
+}
 
-    func applicationWillTerminate(_ notification: Notification) {
-        model?.saveNow()
+private struct CopyCommands: View {
+    @FocusedValue(\.timedNote) private var document
+
+    var body: some View {
+        Button("Copy with Timestamps") { document?.copyWithStamps() }
+            .keyboardShortcut("c", modifiers: [.command, .shift])
+            .disabled(document == nil)
+    }
+}
+
+private struct TimerMenu: View {
+    @FocusedValue(\.timedNote) private var document
+
+    var body: some View {
+        if let document {
+            TimerCommands(timer: document.timer)
+            Divider()
+            DetailCommands(editor: document.editor)
+            Divider()
+            Button("Export as Text…") { document.exportToFile() }
+                .keyboardShortcut("e")
+        }
     }
 }
 

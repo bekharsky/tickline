@@ -20,9 +20,9 @@ final class GutterRenderTests: XCTestCase {
 
     private func sampleLines() -> [NoteSnapshot.Line] {
         [
-            NoteSnapshot.Line(text: "first line", stamp: LineStamp(remaining: 3600, wallClock: Date())),
-            NoteSnapshot.Line(text: "second line", stamp: LineStamp(remaining: 3212.4, wallClock: Date())),
-            NoteSnapshot.Line(text: "third line", stamp: LineStamp(remaining: 45.9, wallClock: Date()))
+            NoteSnapshot.Line(text: "first line", stamp: LineStamp(remaining: 3600)),
+            NoteSnapshot.Line(text: "second line", stamp: LineStamp(remaining: 3212.4)),
+            NoteSnapshot.Line(text: "third line", stamp: LineStamp(remaining: 45.9))
         ]
     }
 

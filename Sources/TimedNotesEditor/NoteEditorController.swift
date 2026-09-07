@@ -32,6 +32,10 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
         didSet { refreshGutter(resize: true) }
     }
 
+    /// The document's undo manager. Routing edits through it is what marks the
+    /// document as needing a save.
+    public weak var hostUndoManager: UndoManager?
+
     let scrollView = NSScrollView()
     let gutter = StampGutterView()
 
@@ -41,6 +45,7 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
     private let textContainer = NSTextContainer()
     private let timedTextView: TimedTextView
 
+    private let ownUndoManager = UndoManager()
     private var bookkeeper = StampBookkeeper()
     private var isLoading = false
 
@@ -205,6 +210,12 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
         refreshGutter(resize: false)
         updateCaretState()
         onChange?()
+    }
+
+    /// Never returns the text view's own manager: asking for it would call back
+    /// into this method.
+    public func undoManager(for view: NSTextView) -> UndoManager? {
+        hostUndoManager ?? ownUndoManager
     }
 
     public func textViewDidChangeSelection(_ notification: Notification) {

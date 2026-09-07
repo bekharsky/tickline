@@ -3,33 +3,44 @@ import TimedNotesCore
 import TimedNotesEditor
 
 struct ContentView: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var document: TimedNoteDocument
+    @Environment(\.undoManager) private var undoManager
 
     var body: some View {
         VStack(spacing: 0) {
-            NoteEditorView(controller: model.editor)
+            NoteEditorView(controller: document.editor)
             Divider()
-            StatusBar(editor: model.editor, timer: model.timer)
+            StatusBar(editor: document.editor, timer: document.timer)
         }
         .frame(minWidth: 520, minHeight: 320)
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                TimerControls(timer: model.timer, model: model)
+                TimerControls(timer: document.timer)
             }
             ToolbarItem(placement: .principal) {
-                RemainingClock(timer: model.timer)
+                RemainingClock(timer: document.timer)
             }
             ToolbarItem(placement: .primaryAction) {
-                DetailControls(editor: model.editor)
+                DetailControls(editor: document.editor)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                CopyStampsButton(editor: document.editor, copy: document.copyWithStamps)
             }
         }
-        .onAppear { model.editor.focus() }
+        .focusedSceneValue(\.timedNote, document)
+        .onAppear {
+            // Editing through the document's undo manager is also what tells
+            // SwiftUI the note is dirty and enables Save.
+            document.editor.hostUndoManager = undoManager
+            document.editor.focus()
+        }
+        .onChange(of: undoManager) { document.editor.hostUndoManager = $0 }
     }
 }
 
 private struct TimerControls: View {
     @ObservedObject var timer: TimerEngine
-    @ObservedObject var model: AppModel
+    @State private var isSettingDuration = false
 
     var body: some View {
         HStack(spacing: 6) {
@@ -47,7 +58,7 @@ private struct TimerControls: View {
             .help("Reset the timer (⇧⌘R)")
 
             Button {
-                model.isDurationEditorPresented = true
+                isSettingDuration = true
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "timer")
@@ -56,7 +67,7 @@ private struct TimerControls: View {
                 }
             }
             .help("Set the timer duration")
-            .popover(isPresented: $model.isDurationEditorPresented, arrowEdge: .bottom) {
+            .popover(isPresented: $isSettingDuration, arrowEdge: .bottom) {
                 DurationEditor(timer: timer)
             }
         }
@@ -121,6 +132,37 @@ private struct DetailControls: View {
     }
 }
 
+/// Copies the note the way it looks right now: stamps at the detail level on
+/// screen, not the full precision kept in the file.
+private struct CopyStampsButton: View {
+    @ObservedObject var editor: NoteEditorController
+    let copy: () -> Void
+
+    @State private var justCopied = false
+
+    var body: some View {
+        Button {
+            copy()
+            justCopied = true
+            Task {
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                justCopied = false
+            }
+        } label: {
+            Image(systemName: justCopied ? "checkmark" : "doc.on.doc")
+        }
+        .help(helpText)
+    }
+
+    private var helpText: String {
+        guard !editor.format.isEmpty else {
+            return "Copy the selection without timestamps (⇧⌘C)"
+        }
+        let sample = StampFormatter.string(for: editor.caretStamp?.remaining ?? 3600, format: editor.format)
+        return "Copy the selection with timestamps as shown, like [\(sample)] (⇧⌘C)"
+    }
+}
+
 private struct StatusBar: View {
     @ObservedObject var editor: NoteEditorController
     @ObservedObject var timer: TimerEngine
@@ -131,7 +173,7 @@ private struct StatusBar: View {
             Text(stampDescription)
                 .monospacedDigit()
             Spacer()
-            Text(StampFormatter.placeholder(for: editor.format).isEmpty ? "stamps hidden" : "detail: \(detailDescription)")
+            Text(editor.format.isEmpty ? "stamps hidden" : "detail: \(detailDescription)")
         }
         .font(.caption)
         .foregroundStyle(.secondary)
