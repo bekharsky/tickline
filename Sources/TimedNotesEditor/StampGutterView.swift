@@ -1,7 +1,7 @@
 import AppKit
 import TimedNotesCore
 
-/// Left gutter that prints each line's remaining-time stamp.
+/// Left gutter that prints each line's stamp.
 ///
 /// A plain sibling view, not an `NSRulerView`: the ruler tiling machinery fights
 /// with SwiftUI's sizing of the scroll view and ends up offsetting the clip view

@@ -53,8 +53,37 @@ final class StampFormatterTests: XCTestCase {
     /// Detail level is only a rendering choice: the stored value stays intact.
     func testChangingDetailIsLossless() {
         let stamp = LineStamp(remaining: 2718.394, wallClock: Date())
-        XCTAssertEqual(StampFormatter.string(for: stamp.remaining, format: .minutesOnly), "45")
-        XCTAssertEqual(StampFormatter.string(for: stamp.remaining, format: .clock), "00:45:18")
-        XCTAssertEqual(StampFormatter.string(for: stamp.remaining, format: .exact), "00:45:18.3")
+        let remaining = stamp.remaining ?? 0
+        XCTAssertEqual(StampFormatter.string(for: remaining, format: .minutesOnly), "45")
+        XCTAssertEqual(StampFormatter.string(for: remaining, format: .clock), "00:45:18")
+        XCTAssertEqual(StampFormatter.string(for: remaining, format: .exact), "00:45:18.3")
+    }
+
+    func testClockStringUsesTimeOfDayNotDuration() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        let date = Date(timeIntervalSince1970: 14 * 3600 + 32 * 60 + 5.4)
+
+        XCTAssertEqual(
+            StampFormatter.clockString(for: date, format: .clock, calendar: calendar),
+            "14:32:05"
+        )
+        XCTAssertEqual(
+            StampFormatter.clockString(
+                for: date,
+                format: StampFormat(hours: false, minutes: true, seconds: true),
+                calendar: calendar
+            ),
+            "32:05",
+            "hours of the clock must not roll into minutes"
+        )
+        XCTAssertEqual(
+            StampFormatter.string(
+                for: LineStamp(remaining: 3600, wallClock: date),
+                mode: .clock,
+                format: .clock
+            ),
+            StampFormatter.clockString(for: date, format: .clock)
+        )
     }
 }

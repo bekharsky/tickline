@@ -1,7 +1,9 @@
 # Tickline
 
-A native macOS notepad on a countdown. Start a timer, write, and every new line
-is marked with the time that was left when you began it.
+A native macOS notepad that stamps each line with a time. It can count down
+a session timer, or it can stamp the time of day like an interstitial journal.
+The two modes share the same editor: a line is marked when you start writing it,
+the detail level is reversible, and notes are ordinary Markdown.
 
 The point is the detail level. The app always stores the exact moment a line
 started, down to fractions of a second, but shows only the units you asked for.
@@ -32,9 +34,11 @@ is only a redraw.
   visual row but stays in the same paragraph, so it keeps the stamp it already
   has. ⌥Return does the same.
 - **Pasting a block** stamps every line it creates with the current time left.
-- **A line written before the timer started** has no stamp, shows `--:--:--` and
-  keeps it that way. Editing it later never backdates it; only lines you write
-  under a running timer get a time.
+- **A line written before the timer started** has no countdown stamp, shows
+  `--:--:--` and keeps it that way. Editing it later never backdates it; only
+  lines you write under a running timer get a remaining time. Switch the toolbar
+  from countdown to the clock and new lines take the time of day instead, even
+  with the timer idle — that is the interstitial-journal mode.
 - **Overtime keeps counting.** After the bell, stamps go negative instead of
   stopping at zero.
 
@@ -42,13 +46,19 @@ is only a redraw.
 
 | Control | What it does |
 | --- | --- |
-| ▶︎ / ▮▮ | Start, pause, resume (⇧⌘P) |
-| ↺ | Reset the timer (⇧⌘R) |
-| ⏱ `1:00:00` | The countdown, and the place to set the duration. Changing it mid-session moves the deadline by the difference |
+| ⏱ / 🕐 | The mode: stamp the time left, or the time of day (⇧⌘T / ⇧⌘D) |
+| ▶︎ / ▮▮ | Start, pause, resume (⇧⌘P). Countdown mode only |
+| ↺ | Reset the timer (⇧⌘R). Countdown mode only |
+| centre | The time the next line will get: the countdown, or the wall clock. Click the countdown to set the duration — changing it mid-session moves the deadline by the difference |
 | ⧉ | Copy with timestamps exactly as shown (⇧⌘C) |
 
-Stamp detail lives in the status bar: click `h:m:s` for Hours, Minutes, Seconds,
-and Tenths (⌘1 … ⌘4). Exact time is ⌘0; minutes only is ⌘9.
+In clock mode the timer controls go away entirely; the centre shows the current
+time instead. The timer is still there — ⇧⌘P from the Timer menu starts it, and
+lines written with it running keep both times.
+
+Stamp detail lives in the status bar: click `h:m:s` (or `H:m:s` in clock mode)
+for Hours, Minutes, Seconds, and Tenths (⌘1 … ⌘4). Exact time is ⌘0; minutes
+only is ⌘9.
 
 Turning a larger unit off rolls it into the next one: with hours off, an hour
 left reads as `60` minutes, not `00`. Turning everything off hides the gutter.
@@ -79,25 +89,26 @@ remaining: 00:41:12.400
 detail: h:m
 ---
 
-[00:59:56.246] started the review
+[00:59:56.246 @ 2026-09-07T14:32:05.123] started the review
 [00:58:12.900] the numbers in section 3 do not add up
                checked twice, still off by 400
 [--:--:--.---] jotted down before the timer started
 ```
 
 Stamps in the file are always written at full precision, whatever the status bar
-shows, so the detail level stays free to change after reopening. The front matter
-carries the timer setup, and lines you broke with ⌘Return come back indented.
+shows, so the detail level stays free to change after reopening. When a line
+knows both the time left and the clock, both are stored, so flipping
+`countdown` / `clock` later still has something to show. Clock-only notes add
+`stamps: clock` to the front matter. The front matter also carries the timer
+setup, and lines you broke with ⌘Return come back indented.
 Older `.timednote` files still open: they are the same Markdown under a private
 extension.
 
 A reopened note starts **paused** — real time passed while the file was closed,
 and pretending otherwise would corrupt every later stamp.
 
-Two things the file does not carry: the calendar time each line was written (it
-records offsets from the timer instead), and shortened stamps like `[45]` from a
-copied note, which are ambiguous between minutes and seconds and so are read as
-plain text.
+Shortened stamps like `[45]` from a copied note are ambiguous between minutes
+and seconds and so are read as plain text.
 
 ## Build and run
 

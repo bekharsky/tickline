@@ -26,7 +26,28 @@ public struct StampFormat: Codable, Equatable {
     public var showsFraction: Bool { subseconds && seconds }
 }
 
+/// What the gutter shows, and what a new line is stamped with.
+public enum StampMode: String, Codable, Equatable, CaseIterable {
+    /// Time left on the countdown. New lines stamp only while the timer runs.
+    case countdown
+    /// Time of day. New lines stamp as soon as writing starts, timer or not.
+    case clock
+}
+
 public enum StampFormatter {
+    /// Picks remaining-time or time-of-day from the stamp, matching `mode`.
+    /// A stamp that does not have that half renders as a placeholder.
+    public static func string(for stamp: LineStamp, mode: StampMode, format: StampFormat) -> String {
+        switch mode {
+        case .countdown:
+            guard let remaining = stamp.remaining else { return placeholder(for: format) }
+            return string(for: remaining, format: format)
+        case .clock:
+            guard let wallClock = stamp.wallClock else { return placeholder(for: format) }
+            return clockString(for: wallClock, format: format)
+        }
+    }
+
     /// Renders `remaining` using only the enabled units.
     ///
     /// A disabled larger unit rolls into the next enabled one: with hours off,
@@ -64,7 +85,39 @@ public enum StampFormatter {
         return text
     }
 
-    /// Same shape as a real stamp, for lines written while the timer was idle.
+    /// Time of day in the given calendar, using the same unit toggles as the
+    /// countdown. Hours here are the clock's hours, not a duration: turning
+    /// them off hides that column rather than rolling 14:32 into 872 minutes.
+    public static func clockString(
+        for date: Date,
+        format: StampFormat,
+        calendar: Calendar = .current
+    ) -> String {
+        guard !format.isEmpty else { return "" }
+
+        let parts = calendar.dateComponents([.hour, .minute, .second, .nanosecond], from: date)
+        var values: [String] = []
+        if format.hours {
+            values.append(twoDigits(Double(parts.hour ?? 0)))
+        }
+        if format.minutes {
+            values.append(twoDigits(Double(parts.minute ?? 0)))
+        }
+        if format.seconds {
+            values.append(twoDigits(Double(parts.second ?? 0)))
+        }
+
+        var text = values.joined(separator: ":")
+        if format.showsFraction {
+            let tenth = min(9, (parts.nanosecond ?? 0) / 100_000_000)
+            text += ".\(tenth)"
+        }
+        return text
+    }
+
+    /// Same shape as a real stamp, for lines that have no value in the current
+    /// mode — written before the timer, or opened from a file that only kept
+    /// the other half of the stamp.
     public static func placeholder(for format: StampFormat) -> String {
         guard !format.isEmpty else { return "" }
 
@@ -76,16 +129,33 @@ public enum StampFormatter {
         return text
     }
 
-    /// Longest stamp the gutter may have to draw, used to size it. One extra
-    /// digit of slack covers overtime running past the original duration.
-    public static func widestSample(duration: TimeInterval, format: StampFormat) -> String {
+    /// Longest stamp the gutter may have to draw, used to size it.
+    public static func widestSample(
+        duration: TimeInterval,
+        format: StampFormat,
+        mode: StampMode = .countdown
+    ) -> String {
         guard !format.isEmpty else { return "" }
 
-        let full = string(for: -abs(duration), format: format)
+        let full: String
+        switch mode {
+        case .countdown:
+            full = string(for: -abs(duration), format: format)
+        case .clock:
+            full = clockString(for: wideClockDate, format: format, calendar: utcCalendar)
+        }
         let candidates = [full, placeholder(for: format)]
         let widest = candidates.max { $0.count < $1.count } ?? full
         return widest + "0"
     }
+
+    private static let utcCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? TimeZone.current
+        return calendar
+    }()
+
+    private static let wideClockDate = Date(timeIntervalSince1970: 23 * 3600 + 59 * 60 + 59.9)
 
     private static func twoDigits(_ value: Double) -> String {
         String(format: "%02.0f", value)

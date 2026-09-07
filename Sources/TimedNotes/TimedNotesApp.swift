@@ -55,6 +55,8 @@ private struct TimerMenu: View {
             Divider()
             DetailCommands(editor: document.editor)
             Divider()
+            StampModeCommands(editor: document.editor)
+            Divider()
             Button("Export as Text…") { document.exportToFile() }
                 .keyboardShortcut("e")
         }
@@ -100,5 +102,16 @@ private struct DetailCommands: View {
             .keyboardShortcut("0", modifiers: .command)
         Button("Minutes Only") { editor.format = .minutesOnly }
             .keyboardShortcut("9", modifiers: .command)
+    }
+}
+
+private struct StampModeCommands: View {
+    @ObservedObject var editor: NoteEditorController
+
+    var body: some View {
+        Button("Countdown Stamps") { editor.stampMode = .countdown }
+            .keyboardShortcut("t", modifiers: [.command, .shift])
+        Button("Time of Day Stamps") { editor.stampMode = .clock }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
     }
 }

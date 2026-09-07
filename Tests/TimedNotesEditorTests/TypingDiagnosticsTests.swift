@@ -178,4 +178,37 @@ final class TypingTests: XCTestCase {
 
         XCTAssertEqual(controller.stampedText(selectionOnly: false), "[60] head\n     tail")
     }
+
+    func testClockModeStampsALineWithoutARunningTimer() {
+        let controller = makeController()
+        controller.stampMode = .clock
+        controller.textView.insertText("hello", replacementRange: NSRange(location: 0, length: 0))
+
+        XCTAssertNotEqual(controller.stampText(forLine: 0), "")
+        XCTAssertNotEqual(controller.stampText(forLine: 0), StampFormatter.placeholder(for: .clock))
+    }
+
+    func testCountdownDoesNotStampUntilTheTimerStarts() {
+        let controller = makeController()
+        controller.stampMode = .countdown
+        controller.textView.insertText("hello", replacementRange: NSRange(location: 0, length: 0))
+
+        XCTAssertEqual(controller.stampText(forLine: 0), "--:--:--")
+    }
+
+    func testCopyFollowsStampMode() {
+        let date = Date(timeIntervalSince1970: 14 * 3600 + 32 * 60)
+        let controller = makeController()
+        controller.format = .clock
+        controller.load(lines: [
+            NoteSnapshot.Line(text: "note", stamp: LineStamp(remaining: 3600, wallClock: date))
+        ])
+
+        controller.stampMode = .countdown
+        XCTAssertEqual(controller.stampedText(selectionOnly: false), "[01:00:00] note")
+
+        controller.stampMode = .clock
+        let expected = StampFormatter.clockString(for: date, format: .clock)
+        XCTAssertEqual(controller.stampedText(selectionOnly: false), "[\(expected)] note")
+    }
 }

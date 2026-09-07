@@ -6,9 +6,16 @@ final class MarkdownNoteTests: XCTestCase {
         lines: [NoteSnapshot.Line],
         duration: TimeInterval = 3600,
         heldRemaining: TimeInterval? = nil,
-        format: StampFormat = .clock
+        format: StampFormat = .clock,
+        stampMode: StampMode = .countdown
     ) -> NoteSnapshot {
-        NoteSnapshot(duration: duration, heldRemaining: heldRemaining, format: format, lines: lines)
+        NoteSnapshot(
+            duration: duration,
+            heldRemaining: heldRemaining,
+            format: format,
+            stampMode: stampMode,
+            lines: lines
+        )
     }
 
     func testFileIsReadableMarkdown() {
@@ -59,8 +66,8 @@ final class MarkdownNoteTests: XCTestCase {
         XCTAssertEqual(restored.lines.map(\.text), ["one", "two", "past the bell"])
         for (restoredLine, originalLine) in zip(restored.lines, original.lines) {
             XCTAssertEqual(
-                restoredLine.stamp?.remaining ?? 0,
-                originalLine.stamp?.remaining ?? 0,
+                restoredLine.stamp.flatMap(\.remaining) ?? 0,
+                originalLine.stamp.flatMap(\.remaining) ?? 0,
                 accuracy: 0.001
             )
         }
@@ -77,8 +84,8 @@ final class MarkdownNoteTests: XCTestCase {
         )
         let stamp = MarkdownNote.snapshot(from: text).lines[0].stamp
 
-        XCTAssertEqual(StampFormatter.string(for: stamp?.remaining ?? 0, format: .minutesOnly), "45")
-        XCTAssertEqual(StampFormatter.string(for: stamp?.remaining ?? 0, format: .exact), "00:45:18.3")
+        XCTAssertEqual(StampFormatter.string(for: stamp.flatMap(\.remaining) ?? 0, format: .minutesOnly), "45")
+        XCTAssertEqual(StampFormatter.string(for: stamp.flatMap(\.remaining) ?? 0, format: .exact), "00:45:18.3")
     }
 
     /// Units used to be written with a capital H. Those notes are on disk and
@@ -126,7 +133,7 @@ final class MarkdownNoteTests: XCTestCase {
 
         let restored = MarkdownNote.snapshot(from: text)
         XCTAssertEqual(restored.lines.map(\.text), ["text", ""])
-        XCTAssertEqual(restored.lines[1].stamp?.remaining ?? 0, 200, accuracy: 0.001)
+        XCTAssertEqual(restored.lines[1].stamp.flatMap(\.remaining) ?? 0, 200, accuracy: 0.001)
     }
 
     func testPlainMarkdownWithoutStampsOpensAsUnstampedLines() {
@@ -142,7 +149,7 @@ final class MarkdownNoteTests: XCTestCase {
         XCTAssertEqual(restored.duration, 3600)
         XCTAssertNil(restored.heldRemaining)
         XCTAssertEqual(restored.format, .clock)
-        XCTAssertEqual(restored.lines[0].stamp?.remaining ?? 0, 600, accuracy: 0.001)
+        XCTAssertEqual(restored.lines[0].stamp.flatMap(\.remaining) ?? 0, 600, accuracy: 0.001)
     }
 
     func testEmptyFileGivesOneEmptyLine() {
@@ -165,5 +172,52 @@ final class MarkdownNoteTests: XCTestCase {
             for: snapshot(lines: [NoteSnapshot.Line(text: "x", stamp: LineStamp(remaining: 119.9996))])
         )
         XCTAssertTrue(text.contains("[00:02:00.000]"), "got: \(text)")
+    }
+
+    func testClockModeAndWallClockRoundTrip() {
+        let date = Date(timeIntervalSince1970: 1_757_249_525.123)
+        let original = snapshot(
+            lines: [
+                NoteSnapshot.Line(text: "hello", stamp: LineStamp(remaining: 100, wallClock: date)),
+                NoteSnapshot.Line(text: "clock only", stamp: LineStamp(wallClock: date))
+            ],
+            stampMode: .clock
+        )
+
+        let text = MarkdownNote.text(for: original)
+        XCTAssertTrue(text.contains("stamps: clock"))
+        XCTAssertTrue(text.contains(" @ "))
+        XCTAssertTrue(text.contains("[@ "), "a clock-only stamp has no remaining half. got: \(text)")
+
+        let restored = MarkdownNote.snapshot(from: text)
+        XCTAssertEqual(restored.stampMode, .clock)
+        XCTAssertEqual(restored.lines[0].stamp.flatMap(\.remaining) ?? 0, 100, accuracy: 0.001)
+        XCTAssertEqual(
+            restored.lines[0].stamp?.wallClock?.timeIntervalSince1970 ?? 0,
+            date.timeIntervalSince1970,
+            accuracy: 0.001
+        )
+        XCTAssertNil(restored.lines[1].stamp.flatMap(\.remaining))
+        XCTAssertEqual(
+            restored.lines[1].stamp?.wallClock?.timeIntervalSince1970 ?? 0,
+            date.timeIntervalSince1970,
+            accuracy: 0.001
+        )
+    }
+
+    func testJournalIsAnAliasForClockMode() {
+        let restored = MarkdownNote.snapshot(
+            from: """
+            ---
+            timer: 01:00:00
+            stamps: journal
+            ---
+
+            [@ 2026-09-07T14:32:05.123] a line
+
+            """
+        )
+        XCTAssertEqual(restored.stampMode, .clock)
+        XCTAssertNotNil(restored.lines[0].stamp?.wallClock)
     }
 }

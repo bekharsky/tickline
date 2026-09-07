@@ -142,6 +142,15 @@ final class NoteSession {
             .sink { [weak self] _ in self?.markChanged() }
             .store(in: &cancellables)
 
+        editor.$stampMode
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.editor.refreshGutter(resize: true)
+                self?.markChanged()
+            }
+            .store(in: &cancellables)
+
         if let loaded {
             apply(loaded)
         }
@@ -152,6 +161,7 @@ final class NoteSession {
             duration: timer.duration,
             heldRemaining: timer.exactRemaining,
             format: editor.format,
+            stampMode: editor.stampMode,
             lines: editor.lines()
         )
     }
@@ -159,6 +169,7 @@ final class NoteSession {
     private func apply(_ snapshot: NoteSnapshot) {
         isApplyingFile = true
         editor.format = snapshot.format
+        editor.stampMode = snapshot.stampMode
         timer.restore(duration: snapshot.duration, heldRemaining: snapshot.heldRemaining)
         editor.load(lines: snapshot.lines)
         isApplyingFile = false

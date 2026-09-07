@@ -23,16 +23,19 @@ struct ContentView: View {
         .frame(minWidth: 420, minHeight: 320)
         .background(WidthReader(width: $width))
         .toolbar {
+            // The mode picker leads: it decides what the whole gutter means, so
+            // it stays put at every width, unlike the transport beside it.
             ToolbarItem(placement: .navigation) {
-                PlayPauseButton(timer: document.timer)
+                StampModePicker(editor: document.editor, showsTitles: width >= 700)
             }
-            if width >= 620 {
-                ToolbarItem(placement: .navigation) {
-                    ResetButton(timer: document.timer)
-                }
-            }
-            ToolbarItem(placement: .navigation) {
-                TimerClock(timer: document.timer)
+            // Centre stage goes to the time the next line will be stamped with:
+            // the countdown with its transport, or the clock on the wall.
+            ToolbarItem(placement: .principal) {
+                StampClock(
+                    editor: document.editor,
+                    timer: document.timer,
+                    showsReset: width >= 620
+                )
             }
             ToolbarItem(placement: .primaryAction) {
                 CopyStampsButton(editor: document.editor, copy: document.copyWithStamps)
@@ -92,9 +95,51 @@ private struct ResetButton: View {
     }
 }
 
-/// The one clock in the app: it counts down next to the transport buttons, and
-/// clicking it is how the duration is set. Nothing else in the toolbar repeats
-/// the number.
+/// Whichever time the next line is about to get. The transport belongs to the
+/// countdown, so it comes and goes with it — in clock mode there is no session
+/// to start or reset, only the time of day.
+private struct StampClock: View {
+    @ObservedObject var editor: NoteEditorController
+    @ObservedObject var timer: TimerEngine
+    var showsReset: Bool
+
+    var body: some View {
+        switch editor.stampMode {
+        case .countdown:
+            // No spacing of its own: each button already carries its own hit
+            // area, and anything added here reads as a gap between the
+            // transport and the number it drives.
+            HStack(spacing: 0) {
+                PlayPauseButton(timer: timer)
+                if showsReset {
+                    ResetButton(timer: timer)
+                }
+                TimerClock(timer: timer)
+            }
+        case .clock:
+            WallClock()
+        }
+    }
+}
+
+/// The time of day, ticking. Not a button: there is nothing to set about it.
+private struct WallClock: View {
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            HStack(spacing: 6) {
+                Image(systemName: "clock")
+                    .imageScale(.large)
+                Text(StampFormatter.clockString(for: context.date, format: .clock))
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 6)
+        }
+        .help("Time of day — what the next line will be stamped with")
+    }
+}
+
+/// The countdown, and the only place the duration is set. Nothing else in the
+/// toolbar repeats the number.
 private struct TimerClock: View {
     @ObservedObject var timer: TimerEngine
     @State private var isSettingDuration = false
@@ -103,8 +148,9 @@ private struct TimerClock: View {
         Button {
             isSettingDuration = true
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 Image(systemName: "timer")
+                    .imageScale(.large)
                 Text(StampFormatter.string(for: timer.remaining, format: .clock))
                     .monospacedDigit()
                     .foregroundStyle(color)
@@ -162,7 +208,12 @@ private struct CopyStampsButton: View {
         guard !editor.format.isEmpty else {
             return "Copy the selection without timestamps (⇧⌘C)"
         }
-        let sample = StampFormatter.string(for: editor.caretStamp?.remaining ?? 3600, format: editor.format)
+        let sample: String
+        if let stamp = editor.caretStamp {
+            sample = StampFormatter.string(for: stamp, mode: editor.stampMode, format: editor.format)
+        } else {
+            sample = StampFormatter.placeholder(for: editor.format)
+        }
         return "Copy the selection with timestamps as shown, like [\(sample)] (⇧⌘C)"
     }
 }
@@ -177,7 +228,7 @@ private struct StatusBar: View {
             Text(stampDescription)
                 .monospacedDigit()
             Spacer()
-            DetailMenu(format: $editor.format)
+            DetailMenu(format: $editor.format, mode: editor.stampMode)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -188,9 +239,61 @@ private struct StatusBar: View {
 
     private var stampDescription: String {
         guard let stamp = editor.caretStamp else {
+            if editor.stampMode == .clock {
+                return "no stamp yet"
+            }
             return timer.phase == .idle ? "line written before the timer started" : "no stamp yet"
         }
-        return "started with \(StampFormatter.string(for: stamp.remaining, format: .exact)) left"
+        switch editor.stampMode {
+        case .countdown:
+            if let remaining = stamp.remaining {
+                return "started with \(StampFormatter.string(for: remaining, format: .exact)) left"
+            }
+            return "no countdown on this line"
+        case .clock:
+            if let wallClock = stamp.wallClock {
+                return "started at \(StampFormatter.clockString(for: wallClock, format: .exact))"
+            }
+            return "no clock time on this line"
+        }
+    }
+}
+
+/// What a new line gets stamped with. Two modes, side by side in the toolbar,
+/// because switching them changes every stamp the app writes from then on —
+/// countdown for a timed session, clock for journalling through the day.
+private struct StampModePicker: View {
+    @ObservedObject var editor: NoteEditorController
+    var showsTitles: Bool
+
+    var body: some View {
+        Picker("Stamps", selection: $editor.stampMode) {
+            item(.countdown, title: "Countdown", symbol: "timer")
+            item(.clock, title: "Time of Day", symbol: "clock")
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+        .help(editor.stampMode == .countdown
+            ? "New lines are stamped with the time left on the timer"
+            : "New lines are stamped with the time of day, timer or not")
+    }
+
+    @ViewBuilder
+    private func item(_ mode: StampMode, title: String, symbol: String) -> some View {
+        if showsTitles {
+            Label(title, systemImage: symbol)
+                .padding(.horizontal, 6)
+                .tag(mode)
+        } else {
+            // Narrow window: the glyphs carry it, and the titles are still in
+            // the Timer menu. They need the room a title would have taken, or
+            // the two segments read as one smudge.
+            Image(systemName: symbol)
+                .frame(width: 22)
+                .padding(.horizontal, 4)
+                .tag(mode)
+        }
     }
 }
 
@@ -199,6 +302,7 @@ private struct StatusBar: View {
 /// named units says far more than four cryptic letters ever did.
 private struct DetailMenu: View {
     @Binding var format: StampFormat
+    var mode: StampMode
 
     var body: some View {
         Menu {
@@ -221,9 +325,7 @@ private struct DetailMenu: View {
         guard !format.isEmpty else { return "stamps hidden" }
 
         var units: [String] = []
-        // Lowercase throughout: these are durations, not times of day, so the
-        // ICU distinction between H and h has nothing to say here.
-        if format.hours { units.append("h") }
+        if format.hours { units.append(mode == .clock ? "H" : "h") }
         if format.minutes { units.append("m") }
         if format.seconds { units.append(format.subseconds ? "s.1" : "s") }
         return units.joined(separator: ":")

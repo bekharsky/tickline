@@ -21,7 +21,7 @@ private struct EditorHarness {
     }
 
     var stamps: [TimeInterval?] {
-        bookkeeper.table.stamps.map { $0?.remaining }
+        bookkeeper.table.stamps.map { $0.flatMap(\.remaining) }
     }
 
     var lineTexts: [String] {
@@ -187,8 +187,8 @@ final class StampBookkeeperTests: XCTestCase {
         let restored = StampBookkeeper(lines: lines)
 
         XCTAssertEqual(restored.lineCount, 2)
-        XCTAssertEqual(restored.stamp(forLine: 0)?.remaining, 3600)
-        XCTAssertEqual(restored.stamp(forLine: 1)?.remaining, 3399)
+        XCTAssertEqual(restored.stamp(forLine: 0).flatMap(\.remaining), 3600)
+        XCTAssertEqual(restored.stamp(forLine: 1).flatMap(\.remaining), 3399)
         XCTAssertEqual(
             NoteExporter.plainText(lines: lines, format: .minutesOnly),
             "[60] one\n[56] two"

@@ -10,9 +10,10 @@ import Foundation
 /// timer: 01:00:00
 /// remaining: 00:53:12.400
 /// detail: h:m
+/// stamps: countdown
 /// ---
 ///
-/// [00:59:56.246] first thought
+/// [00:59:56.246 @ 2026-09-07T14:32:05.123] first thought
 /// [00:59:48.401] second thought
 ///                continued after a soft break
 /// [--:--:--.---] written before the timer started
@@ -28,12 +29,15 @@ public enum MarkdownNote {
             output.append("remaining: \(preciseField(remaining))")
         }
         output.append("detail: \(detailField(snapshot.format))")
+        if snapshot.stampMode != .countdown {
+            output.append("stamps: \(snapshot.stampMode.rawValue)")
+        }
         output.append("---")
         output.append("")
 
         let softBreak = String(ParagraphIndex.softLineBreak)
         for line in snapshot.lines {
-            let field = line.stamp.map { preciseField($0.remaining) } ?? placeholderField
+            let field = line.stamp.map { stampField($0) } ?? placeholderField
             let prefix = "[\(field)]"
             let indent = String(repeating: " ", count: prefix.count + 1)
             let parts = line.text.components(separatedBy: softBreak)
@@ -57,6 +61,7 @@ public enum MarkdownNote {
         var duration: TimeInterval = 3600
         var heldRemaining: TimeInterval?
         var format = StampFormat.clock
+        var stampMode = StampMode.countdown
 
         if body.first?.trimmingCharacters(in: .whitespaces) == "---" {
             var index = 1
@@ -66,6 +71,7 @@ public enum MarkdownNote {
                 case "timer": duration = seconds(from: value) ?? duration
                 case "remaining": heldRemaining = seconds(from: value)
                 case "detail": format = detail(from: value)
+                case "stamps": stampMode = mode(from: value)
                 default: break
                 }
                 index += 1
@@ -104,11 +110,10 @@ public enum MarkdownNote {
             duration: duration,
             heldRemaining: heldRemaining,
             format: format,
+            stampMode: stampMode,
             lines: lines.isEmpty ? [NoteSnapshot.Line(text: "", stamp: nil)] : lines
         )
     }
-
-    // MARK: - Fields
 
     private static func preciseField(_ value: TimeInterval) -> String {
         // Whole milliseconds, so 59.9996 cannot print as 60.000.
@@ -143,6 +148,52 @@ public enum MarkdownNote {
             seconds: units.contains { $0.hasPrefix("s") },
             subseconds: units.contains("s.1")
         )
+    }
+
+    private static func mode(from value: String) -> StampMode {
+        switch value.lowercased() {
+        case "clock", "journal": return .clock
+        default: return .countdown
+        }
+    }
+
+    /// Remaining time, wall clock, or both. The `@` form is unambiguous against
+    /// a countdown stamp, which can also look like `HH:MM:SS.mmm`.
+    private static func stampField(_ stamp: LineStamp) -> String {
+        let remaining = stamp.remaining.map { preciseField($0) }
+        let wall = stamp.wallClock.map { makeWallClockFormatter().string(from: $0) }
+        switch (remaining, wall) {
+        case (let remaining?, let wall?):
+            return "\(remaining) @ \(wall)"
+        case (let remaining?, nil):
+            return remaining
+        case (nil, let wall?):
+            return "@ \(wall)"
+        case (nil, nil):
+            return placeholderField
+        }
+    }
+
+    private static func makeWallClockFormatter() -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS"
+        return formatter
+    }
+
+    private static func wallClock(from value: String) -> Date? {
+        if let date = makeWallClockFormatter().date(from: value) {
+            return date
+        }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: value) {
+            return date
+        }
+        iso.formatOptions = [.withInternetDateTime]
+        return iso.date(from: value)
     }
 
     private static func keyValue(in line: String) -> (String, String) {
@@ -187,6 +238,14 @@ public enum MarkdownNote {
 
         if field.allSatisfy({ $0 == "-" || $0 == ":" || $0 == "." }), field.contains("-") {
             return (nil, text, prefixWidth)
+        }
+        if let at = field.range(of: "@") {
+            let left = field[..<at.lowerBound].trimmingCharacters(in: .whitespaces)
+            let right = field[at.upperBound...].trimmingCharacters(in: .whitespaces)
+            let remaining = left.isEmpty ? nil : seconds(from: left)
+            let wall = wallClock(from: right)
+            guard remaining != nil || wall != nil else { return nil }
+            return (LineStamp(remaining: remaining, wallClock: wall), text, prefixWidth)
         }
         guard let remaining = seconds(from: field) else { return nil }
         return (LineStamp(remaining: remaining), text, prefixWidth)

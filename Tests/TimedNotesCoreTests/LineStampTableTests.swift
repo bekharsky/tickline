@@ -24,7 +24,7 @@ final class LineStampTableTests: XCTestCase {
 
         table.applyEdit(startLine: 0, removedLineBreaks: 0, insertedStamps: [nil])
 
-        XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600, nil])
+        XCTAssertEqual(table.stamps.map { $0.flatMap(\.remaining) }, [3600, nil])
     }
 
     func testEditingInsideALineKeepsItsStamp() {
@@ -42,7 +42,7 @@ final class LineStampTableTests: XCTestCase {
         // Enter pressed in the middle of line 0.
         table.applyEdit(startLine: 0, removedLineBreaks: 0, insertedStamps: [stamp(2000)])
 
-        XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600, 2000, 3000])
+        XCTAssertEqual(table.stamps.map { $0.flatMap(\.remaining) }, [3600, 2000, 3000])
     }
 
     func testDeletingALineBreakMergesStamps() {
@@ -51,7 +51,7 @@ final class LineStampTableTests: XCTestCase {
         // Backspace at the start of line 1 removes one line break.
         table.applyEdit(startLine: 0, removedLineBreaks: 1, insertedStamps: [])
 
-        XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600, 2400])
+        XCTAssertEqual(table.stamps.map { $0.flatMap(\.remaining) }, [3600, 2400])
     }
 
     func testPastingSeveralLinesStampsAllOfThem() {
@@ -63,7 +63,7 @@ final class LineStampTableTests: XCTestCase {
             insertedStamps: [stamp(1800), stamp(1800), stamp(1800)]
         )
 
-        XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600, 1800, 1800, 1800])
+        XCTAssertEqual(table.stamps.map { $0.flatMap(\.remaining) }, [3600, 1800, 1800, 1800])
     }
 
     func testReplacingASelectionSpanningLines() {
@@ -72,17 +72,17 @@ final class LineStampTableTests: XCTestCase {
         // Selection from line 0 through line 2 replaced by two lines of text.
         table.applyEdit(startLine: 0, removedLineBreaks: 2, insertedStamps: [stamp(600)])
 
-        XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600, 600, 1200])
+        XCTAssertEqual(table.stamps.map { $0.flatMap(\.remaining) }, [3600, 600, 1200])
     }
 
     func testEnsureCountFixesDrift() {
         var table = LineStampTable(stamps: [stamp(3600), stamp(3000)])
 
         table.ensureCount(4, filler: stamp(100))
-        XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600, 3000, 100, 100])
+        XCTAssertEqual(table.stamps.map { $0.flatMap(\.remaining) }, [3600, 3000, 100, 100])
 
         table.ensureCount(1, filler: nil)
-        XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600])
+        XCTAssertEqual(table.stamps.map { $0.flatMap(\.remaining) }, [3600])
     }
 
     func testTableNeverBecomesEmpty() {

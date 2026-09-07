@@ -46,6 +46,12 @@ public final class TimerEngine: ObservableObject {
         return LineStamp(remaining: exactRemaining, wallClock: Date())
     }
 
+    /// Time of day for a new line. Attaches remaining time when the timer is
+    /// running, so the writer can flip back to countdown later.
+    public func currentClockStamp() -> LineStamp {
+        LineStamp(remaining: exactRemaining, wallClock: Date())
+    }
+
     /// Changing the duration mid-session moves the deadline by the difference,
     /// so a running timer can be stretched without losing the stamps so far.
     public func setDuration(_ newValue: TimeInterval) {

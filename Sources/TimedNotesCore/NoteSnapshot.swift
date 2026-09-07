@@ -17,6 +17,9 @@ public struct NoteSnapshot: Codable, Equatable {
     /// Time left when the session was saved, `nil` if the timer never started.
     public var heldRemaining: TimeInterval?
     public var format: StampFormat
+    /// Countdown remaining vs time of day. Independent of `format`, which only
+    /// chooses how many units of whichever kind are shown.
+    public var stampMode: StampMode
     public var lines: [Line]
 
     public init(
@@ -24,13 +27,29 @@ public struct NoteSnapshot: Codable, Equatable {
         duration: TimeInterval,
         heldRemaining: TimeInterval?,
         format: StampFormat,
+        stampMode: StampMode = .countdown,
         lines: [Line]
     ) {
         self.version = version
         self.duration = duration
         self.heldRemaining = heldRemaining
         self.format = format
+        self.stampMode = stampMode
         self.lines = lines
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case version, duration, heldRemaining, format, stampMode, lines
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        duration = try container.decode(TimeInterval.self, forKey: .duration)
+        heldRemaining = try container.decodeIfPresent(TimeInterval.self, forKey: .heldRemaining)
+        format = try container.decode(StampFormat.self, forKey: .format)
+        stampMode = try container.decodeIfPresent(StampMode.self, forKey: .stampMode) ?? .countdown
+        lines = try container.decode([Line].self, forKey: .lines)
     }
 }
 
@@ -38,7 +57,11 @@ public enum NoteExporter {
     /// Renders the note as plain text with the stamps put back in front of each
     /// line, right-aligned so the text column stays straight. Soft breaks become
     /// real newlines indented under that column, keeping one stamp per line.
-    public static func plainText(lines: [NoteSnapshot.Line], format: StampFormat) -> String {
+    public static func plainText(
+        lines: [NoteSnapshot.Line],
+        format: StampFormat,
+        mode: StampMode = .countdown
+    ) -> String {
         let softBreak = String(ParagraphIndex.softLineBreak)
 
         guard !format.isEmpty else {
@@ -48,7 +71,7 @@ public enum NoteExporter {
         }
 
         let stamps = lines.map { line in
-            line.stamp.map { StampFormatter.string(for: $0.remaining, format: format) }
+            line.stamp.map { StampFormatter.string(for: $0, mode: mode, format: format) }
                 ?? StampFormatter.placeholder(for: format)
         }
         let width = stamps.map(\.count).max() ?? 0

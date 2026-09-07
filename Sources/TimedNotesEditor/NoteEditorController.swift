@@ -21,6 +21,13 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
         }
     }
 
+    @Published public var stampMode: StampMode = .countdown {
+        didSet {
+            guard stampMode != oldValue else { return }
+            refreshGutter(resize: true)
+        }
+    }
+
     @Published public private(set) var caretLine = 0
     @Published public private(set) var caretStamp: LineStamp?
     @Published public private(set) var lineCount = 1
@@ -134,12 +141,16 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
             ? bookkeeper.lines(in: storage.string, clippedTo: textView.selectedRange())
             : []
         let lines = selected.isEmpty ? self.lines() : selected
-        return NoteExporter.plainText(lines: lines, format: format)
+        return NoteExporter.plainText(lines: lines, format: format, mode: stampMode)
     }
 
     public func refreshGutter(resize: Bool) {
         if resize {
-            let sample = StampFormatter.widestSample(duration: timer?.duration ?? 3600, format: format)
+            let sample = StampFormatter.widestSample(
+                duration: timer?.duration ?? 3600,
+                format: format,
+                mode: stampMode
+            )
             if gutter.updateWidth(sample: sample) {
                 containerView.needsLayout = true
             }
@@ -159,7 +170,7 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
             let isEmpty = bookkeeper.paragraphs.range(forLine: index).length == 0
             return isEmpty ? "" : StampFormatter.placeholder(for: format)
         }
-        return StampFormatter.string(for: stamp.remaining, format: format)
+        return StampFormatter.string(for: stamp, mode: stampMode, format: format)
     }
 
     func lineIndexRange(intersecting characterRange: NSRange) -> Range<Int> {
@@ -201,7 +212,7 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
             currentText: storage.string,
             affectedRange: affectedCharRange,
             replacement: replacementString,
-            stamp: timer?.currentStamp()
+            stamp: stampForWriting()
         )
         return true
     }
@@ -228,6 +239,18 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
     }
 
     // MARK: - Internals
+
+    private func stampForWriting() -> LineStamp? {
+        switch stampMode {
+        case .countdown:
+            return timer?.currentStamp()
+        case .clock:
+            if let timer {
+                return timer.currentClockStamp()
+            }
+            return LineStamp(wallClock: Date())
+        }
+    }
 
     @objc private func redrawGutter() {
         gutter.needsDisplay = true
