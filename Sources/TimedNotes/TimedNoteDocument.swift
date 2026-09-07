@@ -37,6 +37,11 @@ final class TimedNoteDocument: ReferenceFileDocument {
     private let loaded: NoteSnapshot?
     private var live: NoteSession?
 
+    /// What the last change left behind, readable from any thread. Saving can
+    /// arrive on a background queue, and this is what it reads there.
+    private let mirrorLock = NSLock()
+    private var mirror: NoteSnapshot?
+
     init() {
         loaded = nil
     }
@@ -54,14 +59,35 @@ final class TimedNoteDocument: ReferenceFileDocument {
 
     @MainActor var session: NoteSession {
         if let live { return live }
-        let session = NoteSession(loaded: loaded) { [weak self] in self?.revision &+= 1 }
+        let session = NoteSession(loaded: loaded) { [weak self] session in
+            guard let self else { return }
+            self.revision &+= 1
+            self.store(mirror: session.currentSnapshot())
+        }
         live = session
         return session
     }
 
     func snapshot(contentType: UTType) throws -> NoteSnapshot {
-        onMain { $0.currentSnapshot() }
+        if Thread.isMainThread {
+            return MainActor.assumeIsolated { session.currentSnapshot() }
+        }
+
+        // `ReferenceFileDocument` is `Sendable`: nothing promises this runs on
+        // the main thread. AppKit's save machinery hands file access to a
+        // background queue while the main thread waits for it, so hopping back
+        // to read the live editor would deadlock the app instead of saving it.
+        // The mirror is written by every change, on the main thread, and is
+        // exactly what the last edit produced.
+        return mirroredSnapshot ?? loaded ?? Self.emptyNote
     }
+
+    private static let emptyNote = NoteSnapshot(
+        duration: 3600,
+        heldRemaining: nil,
+        format: .clock,
+        lines: [NoteSnapshot.Line(text: "", stamp: nil)]
+    )
 
     func fileWrapper(snapshot: NoteSnapshot, configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: Data(MarkdownNote.text(for: snapshot).utf8))
@@ -87,14 +113,16 @@ final class TimedNoteDocument: ReferenceFileDocument {
         try? editor.stampedText(selectionOnly: false).write(to: url, atomically: true, encoding: .utf8)
     }
 
-    /// Saving may be driven from a background queue, while the state being saved
-    /// lives in AppKit views. A synchronous hop is safe here: the main thread is
-    /// never the one waiting for the save to finish.
-    private func onMain<T>(_ body: @MainActor (NoteSession) -> T) -> T {
-        if Thread.isMainThread {
-            return MainActor.assumeIsolated { body(session) }
-        }
-        return DispatchQueue.main.sync { MainActor.assumeIsolated { body(self.session) } }
+    private func store(mirror snapshot: NoteSnapshot) {
+        mirrorLock.lock()
+        mirror = snapshot
+        mirrorLock.unlock()
+    }
+
+    private var mirroredSnapshot: NoteSnapshot? {
+        mirrorLock.lock()
+        defer { mirrorLock.unlock() }
+        return mirror
     }
 }
 
@@ -105,11 +133,11 @@ final class NoteSession {
     let timer = TimerEngine()
     let editor = NoteEditorController()
 
-    private let changed: () -> Void
+    private let changed: (NoteSession) -> Void
     private var cancellables: Set<AnyCancellable> = []
     private var isApplyingFile = false
 
-    init(loaded: NoteSnapshot?, changed: @escaping () -> Void) {
+    init(loaded: NoteSnapshot?, changed: @escaping (NoteSession) -> Void) {
         self.changed = changed
 
         editor.timer = timer
@@ -178,6 +206,6 @@ final class NoteSession {
     /// Opening a file is not an edit, or every note would open pre-dirtied.
     private func markChanged() {
         guard !isApplyingFile else { return }
-        changed()
+        changed(self)
     }
 }

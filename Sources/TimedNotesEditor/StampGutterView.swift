@@ -11,10 +11,49 @@ final class StampGutterView: NSView {
 
     private(set) var preferredWidth: CGFloat = 56
     private let horizontalPadding: CGFloat = 8
-    private let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+    // Fully monospaced, not just the digits: the dashes and colons of a
+    // placeholder have to line up with the numbers above and below them.
+    // A point below the body text, because monospaced glyphs already read
+    // smaller than the system font at the same size.
+    private let font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+
+    /// Half of the placeholder's blink, at the caret's own rate.
+    private var blinkTimer: Timer?
+    private var showsSeparators = true
 
     /// Flipped to share the text view's top-down coordinates.
     override var isFlipped: Bool { true }
+
+    deinit {
+        blinkTimer?.invalidate()
+    }
+
+    /// Runs the blink only while a line is actually waiting for its first
+    /// character. Restarting it lit keeps a freshly opened line from appearing
+    /// half-drawn.
+    func setWaiting(_ waiting: Bool) {
+        guard waiting else {
+            guard blinkTimer != nil else { return }
+            blinkTimer?.invalidate()
+            blinkTimer = nil
+            showsSeparators = true
+            needsDisplay = true
+            return
+        }
+
+        guard blinkTimer == nil else { return }
+        showsSeparators = true
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.showsSeparators.toggle()
+                self.needsDisplay = true
+            }
+        }
+        // Common mode: the blink must not freeze while a menu is tracking.
+        RunLoop.main.add(timer, forMode: .common)
+        blinkTimer = timer
+    }
 
     /// Sized to the widest stamp the current format can produce.
     func updateWidth(sample: String) -> Bool {
@@ -56,9 +95,7 @@ final class StampGutterView: NSView {
 
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: font,
-                .foregroundColor: index == controller.caretLine
-                    ? NSColor.secondaryLabelColor
-                    : NSColor.tertiaryLabelColor
+                .foregroundColor: colour(forLine: index, in: controller)
             ]
             let lineRect = controller.firstLineFragmentRect(forLine: index)
             let size = (stamp as NSString).size(withAttributes: attributes)
@@ -67,8 +104,45 @@ final class StampGutterView: NSView {
             let x = bounds.maxX - horizontalPadding - size.width
 
             guard y + size.height > dirtyRect.minY, y < dirtyRect.maxY else { continue }
-            (stamp as NSString).draw(at: NSPoint(x: x, y: y), withAttributes: attributes)
+
+            let waiting = index == controller.waitingLine
+            if waiting, !showsSeparators {
+                blinked(stamp, attributes: attributes).draw(at: NSPoint(x: x, y: y))
+            } else {
+                (stamp as NSString).draw(at: NSPoint(x: x, y: y), withAttributes: attributes)
+            }
         }
+    }
+
+    /// Times speak, dashes do not. A placeholder — including the blinking one on
+    /// the line being waited for — stays at the faintest step, or it shouts over
+    /// the writing it sits next to.
+    private func colour(forLine index: Int, in controller: NoteEditorController) -> NSColor {
+        if controller.showsPlaceholder(forLine: index) {
+            return .quaternaryLabelColor
+        }
+        return index == controller.caretLine ? .secondaryLabelColor : .tertiaryLabelColor
+    }
+
+    /// The dark half of the blink: separators drop out, the dashes stay. Only
+    /// the punctuation flickers, so the column keeps its width and the eye is
+    /// not dragged across the page.
+    private func blinked(
+        _ stamp: String,
+        attributes: [NSAttributedString.Key: Any]
+    ) -> NSAttributedString {
+        let text = NSMutableAttributedString(string: stamp, attributes: attributes)
+        let characters = stamp as NSString
+        for offset in 0..<characters.length {
+            let character = characters.character(at: offset)
+            guard character == 0x3A || character == 0x2E else { continue }
+            text.addAttribute(
+                .foregroundColor,
+                value: NSColor.clear,
+                range: NSRange(location: offset, length: 1)
+            )
+        }
+        return text
     }
 }
 

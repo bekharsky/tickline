@@ -16,8 +16,12 @@ import Foundation
 /// [00:59:56.246 @ 2026-09-07T14:32:05.123] first thought
 /// [00:59:48.401] second thought
 ///                continued after a soft break
+/// [@ 2026-09-07T14:33:10.004] written as a clock stamp
 /// [--:--:--.---] written before the timer started
 /// ```
+///
+/// Whichever time comes first is the one the line was stamped with, and the one
+/// it keeps showing. Switching modes changes new lines, never old ones.
 public enum MarkdownNote {
     public static let placeholderField = "--:--:--.---"
 
@@ -157,20 +161,20 @@ public enum MarkdownNote {
         }
     }
 
-    /// Remaining time, wall clock, or both. The `@` form is unambiguous against
-    /// a countdown stamp, which can also look like `HH:MM:SS.mmm`.
+    /// The kind of the stamp comes first, and the other time, when it is known,
+    /// follows it. A clock stamp leads with `@`, which also keeps a calendar
+    /// date from being mistaken for a countdown of `HH:MM:SS.mmm`.
     private static func stampField(_ stamp: LineStamp) -> String {
         let remaining = stamp.remaining.map { preciseField($0) }
         let wall = stamp.wallClock.map { makeWallClockFormatter().string(from: $0) }
-        switch (remaining, wall) {
-        case (let remaining?, let wall?):
-            return "\(remaining) @ \(wall)"
-        case (let remaining?, nil):
-            return remaining
-        case (nil, let wall?):
-            return "@ \(wall)"
-        case (nil, nil):
-            return placeholderField
+
+        switch stamp.kind {
+        case .countdown:
+            guard let remaining else { return placeholderField }
+            return wall.map { "\(remaining) @ \($0)" } ?? remaining
+        case .clock:
+            guard let wall else { return placeholderField }
+            return remaining.map { "@ \(wall) \($0)" } ?? "@ \(wall)"
         }
     }
 
@@ -242,13 +246,27 @@ public enum MarkdownNote {
         if let at = field.range(of: "@") {
             let left = field[..<at.lowerBound].trimmingCharacters(in: .whitespaces)
             let right = field[at.upperBound...].trimmingCharacters(in: .whitespaces)
-            let remaining = left.isEmpty ? nil : seconds(from: left)
-            let wall = wallClock(from: right)
-            guard remaining != nil || wall != nil else { return nil }
-            return (LineStamp(remaining: remaining, wallClock: wall), text, prefixWidth)
+
+            // Leading `@`: a clock line, with the countdown trailing it when the
+            // timer happened to be running.
+            if left.isEmpty {
+                let parts = right.split(separator: " ", maxSplits: 1).map(String.init)
+                guard let wall = parts.first.flatMap({ wallClock(from: $0) }) else { return nil }
+                let remaining = parts.count > 1 ? seconds(from: parts[1]) : nil
+                let stamp = LineStamp(remaining: remaining, wallClock: wall, kind: .clock)
+                return (stamp, text, prefixWidth)
+            }
+
+            guard let remaining = seconds(from: left) else { return nil }
+            let stamp = LineStamp(
+                remaining: remaining,
+                wallClock: wallClock(from: right),
+                kind: .countdown
+            )
+            return (stamp, text, prefixWidth)
         }
         guard let remaining = seconds(from: field) else { return nil }
-        return (LineStamp(remaining: remaining), text, prefixWidth)
+        return (LineStamp(remaining: remaining, kind: .countdown), text, prefixWidth)
     }
 
     private static func trimmingTrailingSpaces(_ line: String) -> String {

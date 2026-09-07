@@ -210,7 +210,7 @@ private struct CopyStampsButton: View {
         }
         let sample: String
         if let stamp = editor.caretStamp {
-            sample = StampFormatter.string(for: stamp, mode: editor.stampMode, format: editor.format)
+            sample = StampFormatter.string(for: stamp, format: editor.format)
         } else {
             sample = StampFormatter.placeholder(for: editor.format)
         }
@@ -244,17 +244,14 @@ private struct StatusBar: View {
             }
             return timer.phase == .idle ? "line written before the timer started" : "no stamp yet"
         }
-        switch editor.stampMode {
+        // The line's own kind, not the toolbar's: this describes what is there.
+        switch stamp.kind {
         case .countdown:
-            if let remaining = stamp.remaining {
-                return "started with \(StampFormatter.string(for: remaining, format: .exact)) left"
-            }
-            return "no countdown on this line"
+            guard let remaining = stamp.remaining else { return "no countdown on this line" }
+            return "started with \(StampFormatter.string(for: remaining, format: .exact)) left"
         case .clock:
-            if let wallClock = stamp.wallClock {
-                return "started at \(StampFormatter.clockString(for: wallClock, format: .exact))"
-            }
-            return "no clock time on this line"
+            guard let wallClock = stamp.wallClock else { return "no clock time on this line" }
+            return "started at \(StampFormatter.clockString(for: wallClock, format: .exact))"
         }
     }
 }

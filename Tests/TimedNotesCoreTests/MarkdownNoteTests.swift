@@ -178,7 +178,10 @@ final class MarkdownNoteTests: XCTestCase {
         let date = Date(timeIntervalSince1970: 1_757_249_525.123)
         let original = snapshot(
             lines: [
-                NoteSnapshot.Line(text: "hello", stamp: LineStamp(remaining: 100, wallClock: date)),
+                NoteSnapshot.Line(
+                    text: "hello",
+                    stamp: LineStamp(remaining: 100, wallClock: date, kind: .clock)
+                ),
                 NoteSnapshot.Line(text: "clock only", stamp: LineStamp(wallClock: date))
             ],
             stampMode: .clock
@@ -186,23 +189,59 @@ final class MarkdownNoteTests: XCTestCase {
 
         let text = MarkdownNote.text(for: original)
         XCTAssertTrue(text.contains("stamps: clock"))
-        XCTAssertTrue(text.contains(" @ "))
-        XCTAssertTrue(text.contains("[@ "), "a clock-only stamp has no remaining half. got: \(text)")
+        XCTAssertTrue(text.contains("[@ "), "a clock line leads with its clock. got: \(text)")
 
         let restored = MarkdownNote.snapshot(from: text)
         XCTAssertEqual(restored.stampMode, .clock)
+        XCTAssertEqual(restored.lines[0].stamp?.kind, .clock)
         XCTAssertEqual(restored.lines[0].stamp.flatMap(\.remaining) ?? 0, 100, accuracy: 0.001)
         XCTAssertEqual(
             restored.lines[0].stamp?.wallClock?.timeIntervalSince1970 ?? 0,
             date.timeIntervalSince1970,
             accuracy: 0.001
         )
+        XCTAssertEqual(restored.lines[1].stamp?.kind, .clock)
         XCTAssertNil(restored.lines[1].stamp.flatMap(\.remaining))
         XCTAssertEqual(
             restored.lines[1].stamp?.wallClock?.timeIntervalSince1970 ?? 0,
             date.timeIntervalSince1970,
             accuracy: 0.001
         )
+    }
+
+    /// One note, both kinds. Reopening has to bring each line back as itself.
+    func testAMixedNoteKeepsEachLineInItsOwnKind() {
+        let date = Date(timeIntervalSince1970: 1_757_249_525.123)
+        let original = snapshot(
+            lines: [
+                NoteSnapshot.Line(
+                    text: "timed",
+                    stamp: LineStamp(remaining: 3600, wallClock: date, kind: .countdown)
+                ),
+                NoteSnapshot.Line(
+                    text: "journalled",
+                    stamp: LineStamp(remaining: 3000, wallClock: date, kind: .clock)
+                )
+            ],
+            stampMode: .clock
+        )
+
+        let restored = MarkdownNote.snapshot(from: MarkdownNote.text(for: original))
+
+        XCTAssertEqual(restored.lines.map(\.text), ["timed", "journalled"])
+        XCTAssertEqual(restored.lines[0].stamp?.kind, .countdown)
+        XCTAssertEqual(restored.lines[1].stamp?.kind, .clock)
+        for line in restored.lines {
+            XCTAssertNotNil(line.stamp?.remaining, "both halves survive either way round")
+            XCTAssertNotNil(line.stamp?.wallClock)
+        }
+    }
+
+    /// Notes written before the two modes existed are all countdowns.
+    func testOlderStampsReadAsCountdowns() {
+        let restored = MarkdownNote.snapshot(from: "[00:10:00.000] a note\n")
+
+        XCTAssertEqual(restored.lines[0].stamp?.kind, .countdown)
     }
 
     func testJournalIsAnAliasForClockMode() {

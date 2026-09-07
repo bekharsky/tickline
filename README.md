@@ -26,19 +26,29 @@ is only a redraw.
 
 - **A line is stamped by its first character, not by Return.** Breaking the line
   early and then thinking for a minute costs nothing: the empty line waits, and
-  takes the time you actually start writing. Editing inside a line keeps its
-  original stamp, and splitting an old line stamps the new tail.
+  takes the time you actually start writing. While it waits, the gutter shows
+  `--:--:--` with blinking separators — a stamp is coming, it just does not know
+  which one yet. Editing inside a line keeps its original stamp, and splitting an
+  old line stamps the new tail.
 - **A blank line left for spacing stays blank in the gutter.** Nothing was
-  written on it, so it has no time to show.
+  written on it, so it has no time to show, and Return pressed on it again only
+  pushes it down.
 - **⌘Return breaks a line without a new stamp.** The text moves to the next
   visual row but stays in the same paragraph, so it keeps the stamp it already
-  has. ⌥Return does the same.
+  has, and nothing blinks — there is no new line to wait for. ⌥Return does the
+  same.
 - **Pasting a block** stamps every line it creates with the current time left.
 - **A line written before the timer started** has no countdown stamp, shows
   `--:--:--` and keeps it that way. Editing it later never backdates it; only
   lines you write under a running timer get a remaining time. Switch the toolbar
   from countdown to the clock and new lines take the time of day instead, even
   with the timer idle — that is the interstitial-journal mode.
+- **A line keeps the kind of time it was written with.** Switching modes decides
+  what the next line gets and rewrites nothing: countdown lines go on showing the
+  countdown, clock lines go on showing the clock, and a note where you changed
+  your mind half way through stays a record of that. The timer keeps running
+  through the switch, so a clock line written while it ticks quietly keeps the
+  remaining time too.
 - **Overtime keeps counting.** After the bell, stamps go negative instead of
   stopping at zero.
 
@@ -92,15 +102,17 @@ detail: h:m
 [00:59:56.246 @ 2026-09-07T14:32:05.123] started the review
 [00:58:12.900] the numbers in section 3 do not add up
                checked twice, still off by 400
+[@ 2026-09-07T14:41:22.500] switched to clock stamps here
 [--:--:--.---] jotted down before the timer started
 ```
 
 Stamps in the file are always written at full precision, whatever the status bar
-shows, so the detail level stays free to change after reopening. When a line
-knows both the time left and the clock, both are stored, so flipping
-`countdown` / `clock` later still has something to show. Clock-only notes add
-`stamps: clock` to the front matter. The front matter also carries the timer
-setup, and lines you broke with ⌘Return come back indented.
+shows, so the detail level stays free to change after reopening. Whichever time
+comes first is the kind the line was written with; a second one after it is what
+the other clock happened to read at that moment. A note that says
+`stamps: clock` in its front matter is one where new lines take the time of day.
+The front matter also carries the timer setup, and lines you broke with ⌘Return
+come back indented.
 Older `.timednote` files still open: they are the same Markdown under a private
 extension.
 

@@ -5,7 +5,7 @@ import TimedNotesEditor
 @main
 struct TimedNotesApp: App {
     init() {
-        LegacySessionRecovery.runOnce()
+        LegacySessionRecovery.scheduleOnce()
     }
 
     var body: some Scene {

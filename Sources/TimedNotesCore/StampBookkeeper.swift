@@ -99,7 +99,11 @@ public struct StampBookkeeper {
         // gets the time it was actually written. A line that already holds text
         // keeps whatever it has, so anything written before the timer stays
         // unstamped no matter how much it is edited afterwards.
-        if !replacement.isEmpty,
+        //
+        // A replacement that starts with a line break writes nothing here: it
+        // pushes the empty line down and leaves it as blank as it was.
+        let writtenHere = ParagraphIndex.paragraphs(in: replacement).first ?? ""
+        if !writtenHere.isEmpty,
            table.stamp(forLine: startLine) == nil,
            paragraphs.range(forLine: startLine).length == 0,
            let stamp {

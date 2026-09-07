@@ -76,6 +76,18 @@ final class StampBookkeeperTests: XCTestCase {
 
     /// The first line of a fresh note is empty, so writing on it is where it
     /// begins — otherwise it could never be stamped at all.
+    /// Return pressed twice leaves a blank line behind. Nothing was written on
+    /// it, so it takes no time — even though the second Return was typed there.
+    func testReturnOnAnEmptyLineDoesNotStampIt() {
+        var editor = EditorHarness()
+        editor.type("above", remaining: 3600)
+        editor.type("\n", remaining: 3550)
+        editor.type("\n", remaining: 3500)
+        editor.type("below", remaining: 3400)
+
+        XCTAssertEqual(editor.stamps, [3600, nil, 3400])
+    }
+
     func testFirstWordOnAnEmptyLineStampsIt() {
         var editor = EditorHarness()
         editor.type("hello", remaining: 3600)

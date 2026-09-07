@@ -43,13 +43,13 @@ public final class TimerEngine: ObservableObject {
 
     public func currentStamp() -> LineStamp? {
         guard let exactRemaining else { return nil }
-        return LineStamp(remaining: exactRemaining, wallClock: Date())
+        return LineStamp(remaining: exactRemaining, wallClock: Date(), kind: .countdown)
     }
 
-    /// Time of day for a new line. Attaches remaining time when the timer is
-    /// running, so the writer can flip back to countdown later.
+    /// Time of day for a new line. The remaining time rides along when the timer
+    /// happens to be running, but the line is a clock line and stays one.
     public func currentClockStamp() -> LineStamp {
-        LineStamp(remaining: exactRemaining, wallClock: Date())
+        LineStamp(remaining: exactRemaining, wallClock: Date(), kind: .clock)
     }
 
     /// Changing the duration mid-session moves the deadline by the difference,

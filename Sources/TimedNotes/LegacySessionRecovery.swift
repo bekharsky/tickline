@@ -5,7 +5,14 @@ import TimedNotesCore
 /// Application Support. Anything left in it is written out as a real file once,
 /// rather than quietly becoming unreachable.
 enum LegacySessionRecovery {
-    static func runOnce() {
+    /// Runs on the first turn of the run loop, never inside `App.init()`: a
+    /// modal alert put up before AppKit has finished launching wedges the
+    /// launch instead of being answered.
+    static func scheduleOnce() {
+        DispatchQueue.main.async { runOnce() }
+    }
+
+    private static func runOnce() {
         let store = SessionStore()
         guard let snapshot = store.load() else { return }
 

@@ -35,10 +35,11 @@ public enum StampMode: String, Codable, Equatable, CaseIterable {
 }
 
 public enum StampFormatter {
-    /// Picks remaining-time or time-of-day from the stamp, matching `mode`.
-    /// A stamp that does not have that half renders as a placeholder.
-    public static func string(for stamp: LineStamp, mode: StampMode, format: StampFormat) -> String {
-        switch mode {
+    /// Renders a stamp as the kind of time it was made with. The app-wide mode
+    /// has no say here: a line written against the countdown keeps showing the
+    /// countdown even after the writer moves on to clock stamps.
+    public static func string(for stamp: LineStamp, format: StampFormat) -> String {
+        switch stamp.kind {
         case .countdown:
             guard let remaining = stamp.remaining else { return placeholder(for: format) }
             return string(for: remaining, format: format)
@@ -129,23 +130,18 @@ public enum StampFormatter {
         return text
     }
 
-    /// Longest stamp the gutter may have to draw, used to size it.
-    public static func widestSample(
-        duration: TimeInterval,
-        format: StampFormat,
-        mode: StampMode = .countdown
-    ) -> String {
+    /// Longest stamp the gutter may have to draw, used to size it. Both kinds
+    /// are measured: one note can hold countdown and clock lines side by side,
+    /// and the column must not resize when the writer switches.
+    public static func widestSample(duration: TimeInterval, format: StampFormat) -> String {
         guard !format.isEmpty else { return "" }
 
-        let full: String
-        switch mode {
-        case .countdown:
-            full = string(for: -abs(duration), format: format)
-        case .clock:
-            full = clockString(for: wideClockDate, format: format, calendar: utcCalendar)
-        }
-        let candidates = [full, placeholder(for: format)]
-        let widest = candidates.max { $0.count < $1.count } ?? full
+        let candidates = [
+            string(for: -abs(duration), format: format),
+            clockString(for: wideClockDate, format: format, calendar: utcCalendar),
+            placeholder(for: format)
+        ]
+        let widest = candidates.max { $0.count < $1.count } ?? ""
         return widest + "0"
     }
 

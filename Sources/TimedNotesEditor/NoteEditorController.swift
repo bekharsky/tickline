@@ -21,6 +21,8 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
         }
     }
 
+    /// What the next line will be stamped with. Lines already written keep the
+    /// kind they were given, so this only ever changes what is coming.
     @Published public var stampMode: StampMode = .countdown {
         didSet {
             guard stampMode != oldValue else { return }
@@ -141,20 +143,20 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
             ? bookkeeper.lines(in: storage.string, clippedTo: textView.selectedRange())
             : []
         let lines = selected.isEmpty ? self.lines() : selected
-        return NoteExporter.plainText(lines: lines, format: format, mode: stampMode)
+        return NoteExporter.plainText(lines: lines, format: format)
     }
 
     public func refreshGutter(resize: Bool) {
         if resize {
             let sample = StampFormatter.widestSample(
                 duration: timer?.duration ?? 3600,
-                format: format,
-                mode: stampMode
+                format: format
             )
             if gutter.updateWidth(sample: sample) {
                 containerView.needsLayout = true
             }
         }
+        gutter.setWaiting(waitingLine != nil)
         gutter.needsDisplay = true
     }
 
@@ -165,12 +167,42 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
     func stampText(forLine index: Int) -> String {
         guard !format.isEmpty else { return "" }
         guard let stamp = bookkeeper.stamp(forLine: index) else {
-            // An empty line has not been written on yet — it is waiting for its
-            // first character, and dashes there would only be noise.
+            // An empty line has not been written on yet. The one the caret sits
+            // on shows a placeholder to say a stamp is coming; any other blank
+            // line is just spacing, and dashes there would be noise.
             let isEmpty = bookkeeper.paragraphs.range(forLine: index).length == 0
-            return isEmpty ? "" : StampFormatter.placeholder(for: format)
+            if isEmpty, index != waitingLine {
+                return ""
+            }
+            return StampFormatter.placeholder(for: format)
         }
-        return StampFormatter.string(for: stamp, mode: stampMode, format: format)
+        return StampFormatter.string(for: stamp, format: format)
+    }
+
+    /// Whether the gutter is showing dashes rather than a time. A placeholder
+    /// carries no information, so it is drawn quieter than a real stamp.
+    func showsPlaceholder(forLine index: Int) -> Bool {
+        bookkeeper.stamp(forLine: index) == nil
+    }
+
+    /// The empty line the caret is on, when the next character typed there will
+    /// take a stamp. Return leaves one behind; the gutter blinks its separators
+    /// so the wait is visible. ⌘Return never creates one — it stays inside the
+    /// paragraph it broke, under the stamp that line already has.
+    var waitingLine: Int? {
+        guard willStampNewLines,
+              bookkeeper.stamp(forLine: caretLine) == nil,
+              bookkeeper.paragraphs.range(forLine: caretLine).length == 0
+        else { return nil }
+        return caretLine
+    }
+
+    /// Whether a line started right now would get a time at all.
+    private var willStampNewLines: Bool {
+        switch stampMode {
+        case .clock: return true
+        case .countdown: return timer?.phase.isActive ?? false
+        }
     }
 
     func lineIndexRange(intersecting characterRange: NSRange) -> Range<Int> {
@@ -261,5 +293,6 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
         caretLine = index
         caretStamp = bookkeeper.stamp(forLine: index)
         lineCount = bookkeeper.lineCount
+        gutter.setWaiting(waitingLine != nil)
     }
 }

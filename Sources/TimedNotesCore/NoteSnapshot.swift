@@ -57,11 +57,7 @@ public enum NoteExporter {
     /// Renders the note as plain text with the stamps put back in front of each
     /// line, right-aligned so the text column stays straight. Soft breaks become
     /// real newlines indented under that column, keeping one stamp per line.
-    public static func plainText(
-        lines: [NoteSnapshot.Line],
-        format: StampFormat,
-        mode: StampMode = .countdown
-    ) -> String {
+    public static func plainText(lines: [NoteSnapshot.Line], format: StampFormat) -> String {
         let softBreak = String(ParagraphIndex.softLineBreak)
 
         guard !format.isEmpty else {
@@ -70,14 +66,24 @@ public enum NoteExporter {
                 .joined(separator: "\n")
         }
 
-        let stamps = lines.map { line in
-            line.stamp.map { StampFormatter.string(for: $0, mode: mode, format: format) }
-                ?? StampFormatter.placeholder(for: format)
+        // Exactly what the gutter shows, line for line: each stamp in its own
+        // kind, at the detail on screen, and nothing at all beside a blank line
+        // that was never written on.
+        let stamps: [String?] = lines.map { line in
+            if let stamp = line.stamp {
+                return StampFormatter.string(for: stamp, format: format)
+            }
+            return line.text.isEmpty ? nil : StampFormatter.placeholder(for: format)
         }
-        let width = stamps.map(\.count).max() ?? 0
+        let width = stamps.compactMap { $0?.count }.max() ?? 0
 
         var output: [String] = []
         for (stamp, line) in zip(stamps, lines) {
+            guard let stamp else {
+                output.append("")
+                continue
+            }
+
             let padded = String(repeating: " ", count: width - stamp.count) + stamp
             let prefix = "[\(padded)] "
             let parts = line.text.components(separatedBy: softBreak)

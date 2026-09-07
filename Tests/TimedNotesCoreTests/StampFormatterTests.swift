@@ -79,10 +79,24 @@ final class StampFormatterTests: XCTestCase {
         )
         XCTAssertEqual(
             StampFormatter.string(
-                for: LineStamp(remaining: 3600, wallClock: date),
-                mode: .clock,
+                for: LineStamp(remaining: 3600, wallClock: date, kind: .clock),
                 format: .clock
             ),
+            StampFormatter.clockString(for: date, format: .clock)
+        )
+    }
+
+    /// A stamp is shown as what it was made with, both halves or not.
+    func testAStampIsShownAsTheKindItWasMadeWith() {
+        let date = Date(timeIntervalSince1970: 14 * 3600 + 32 * 60 + 5)
+        let bothHalves = LineStamp(remaining: 2718.394, wallClock: date, kind: .countdown)
+
+        XCTAssertEqual(StampFormatter.string(for: bothHalves, format: .clock), "00:45:18")
+
+        var journalled = bothHalves
+        journalled.kind = .clock
+        XCTAssertEqual(
+            StampFormatter.string(for: journalled, format: .clock),
             StampFormatter.clockString(for: date, format: .clock)
         )
     }
