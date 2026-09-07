@@ -5,5 +5,5 @@ dist/
 build/
 DerivedData/
 Local.xcconfig
-*.xcuserdata/
+**/xcuserdata/
 *.xcworkspace/
