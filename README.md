@@ -22,14 +22,18 @@ drawn in the left gutter, so a timestamp cannot be typed over, deleted by
 accident, or copied into the middle of a sentence — and changing the detail level
 is only a redraw.
 
-- **Return starts a new line, and a new stamp.** Splitting an old line stamps the
-  new tail; editing inside a line keeps its original stamp.
+- **A line is stamped by its first character, not by Return.** Breaking the line
+  early and then thinking for a minute costs nothing: the empty line waits, and
+  takes the time you actually start writing. Editing inside a line keeps its
+  original stamp, and splitting an old line stamps the new tail.
+- **A blank line left for spacing stays blank in the gutter.** Nothing was
+  written on it, so it has no time to show.
 - **⌘Return breaks a line without a new stamp.** The text moves to the next
   visual row but stays in the same paragraph, so it keeps the stamp it already
   has. ⌥Return does the same.
 - **Pasting a block** stamps every line it creates with the current time left.
 - **A line written before the timer started** has no stamp, shows `--:--:--` and
-  keeps it that way. Editing it later never backdates it; only lines you start
+  keeps it that way. Editing it later never backdates it; only lines you write
   under a running timer get a time.
 - **Overtime keeps counting.** After the bell, stamps go negative instead of
   stopping at zero.
@@ -69,7 +73,7 @@ any editor or Quick Look can read it:
 ---
 timer: 01:00:00
 remaining: 00:41:12.400
-detail: H:m
+detail: h:m
 ---
 
 [00:59:56.246] started the review

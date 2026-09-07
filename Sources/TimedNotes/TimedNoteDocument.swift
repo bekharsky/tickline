@@ -12,38 +12,47 @@ extension UTType {
 }
 
 /// One note, one timer, one window.
-@MainActor
-final class TimedNoteDocument: @preconcurrency ReferenceFileDocument {
+///
+/// AppKit builds documents on a background queue whenever a file is opened from
+/// a URL, so this half holds nothing but the bytes that were read. The timer and
+/// the editor are AppKit objects and only come to life in `session`, on the main
+/// thread, when a window finally asks for them.
+final class TimedNoteDocument: ReferenceFileDocument {
     typealias Snapshot = NoteSnapshot
 
     static var readableContentTypes: [UTType] { [.timedNote, .plainText] }
     static var writableContentTypes: [UTType] { [.timedNote] }
 
-    let timer = TimerEngine()
-    let editor = NoteEditorController()
-
     /// Bumped on every change so SwiftUI knows the document needs saving.
     @Published private(set) var revision = 0
 
-    private var cancellables: Set<AnyCancellable> = []
-    private var isApplyingFile = false
+    private let loaded: NoteSnapshot?
+    private var live: NoteSession?
 
     init() {
-        configure()
+        loaded = nil
     }
 
     required init(configuration: ReadConfiguration) throws {
-        configure()
-
         guard let data = configuration.file.regularFileContents,
               let text = String(data: data, encoding: .utf8)
         else { throw CocoaError(.fileReadCorruptFile) }
 
-        apply(MarkdownNote.snapshot(from: text))
+        loaded = MarkdownNote.snapshot(from: text)
+    }
+
+    @MainActor var timer: TimerEngine { session.timer }
+    @MainActor var editor: NoteEditorController { session.editor }
+
+    @MainActor var session: NoteSession {
+        if let live { return live }
+        let session = NoteSession(loaded: loaded) { [weak self] in self?.revision &+= 1 }
+        live = session
+        return session
     }
 
     func snapshot(contentType: UTType) throws -> NoteSnapshot {
-        currentSnapshot()
+        onMain { $0.currentSnapshot() }
     }
 
     func fileWrapper(snapshot: NoteSnapshot, configuration: WriteConfiguration) throws -> FileWrapper {
@@ -54,12 +63,14 @@ final class TimedNoteDocument: @preconcurrency ReferenceFileDocument {
 
     /// Copies the selected lines with their stamps, or the whole note when
     /// nothing is selected.
+    @MainActor
     func copyWithStamps() {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(editor.stampedText(selectionOnly: true), forType: .string)
     }
 
+    @MainActor
     func exportToFile() {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "timed-note.txt"
@@ -68,9 +79,31 @@ final class TimedNoteDocument: @preconcurrency ReferenceFileDocument {
         try? editor.stampedText(selectionOnly: false).write(to: url, atomically: true, encoding: .utf8)
     }
 
-    // MARK: - Internals
+    /// Saving may be driven from a background queue, while the state being saved
+    /// lives in AppKit views. A synchronous hop is safe here: the main thread is
+    /// never the one waiting for the save to finish.
+    private func onMain<T>(_ body: @MainActor (NoteSession) -> T) -> T {
+        if Thread.isMainThread {
+            return MainActor.assumeIsolated { body(session) }
+        }
+        return DispatchQueue.main.sync { MainActor.assumeIsolated { body(self.session) } }
+    }
+}
 
-    private func configure() {
+/// The living note: the timer, the editor, and the wiring that marks the
+/// document dirty when either of them moves.
+@MainActor
+final class NoteSession {
+    let timer = TimerEngine()
+    let editor = NoteEditorController()
+
+    private let changed: () -> Void
+    private var cancellables: Set<AnyCancellable> = []
+    private var isApplyingFile = false
+
+    init(loaded: NoteSnapshot?, changed: @escaping () -> Void) {
+        self.changed = changed
+
         editor.timer = timer
         editor.onChange = { [weak self] in self?.markChanged() }
 
@@ -100,6 +133,19 @@ final class TimedNoteDocument: @preconcurrency ReferenceFileDocument {
             .dropFirst()
             .sink { [weak self] _ in self?.markChanged() }
             .store(in: &cancellables)
+
+        if let loaded {
+            apply(loaded)
+        }
+    }
+
+    func currentSnapshot() -> NoteSnapshot {
+        NoteSnapshot(
+            duration: timer.duration,
+            heldRemaining: timer.exactRemaining,
+            format: editor.format,
+            lines: editor.lines()
+        )
     }
 
     private func apply(_ snapshot: NoteSnapshot) {
@@ -110,18 +156,9 @@ final class TimedNoteDocument: @preconcurrency ReferenceFileDocument {
         isApplyingFile = false
     }
 
-    private func currentSnapshot() -> NoteSnapshot {
-        NoteSnapshot(
-            duration: timer.duration,
-            heldRemaining: timer.exactRemaining,
-            format: editor.format,
-            lines: editor.lines()
-        )
-    }
-
     /// Opening a file is not an edit, or every note would open pre-dirtied.
     private func markChanged() {
         guard !isApplyingFile else { return }
-        revision &+= 1
+        changed()
     }
 }

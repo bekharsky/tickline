@@ -6,22 +6,33 @@ struct ContentView: View {
     @ObservedObject var document: TimedNoteDocument
     @Environment(\.undoManager) private var undoManager
 
+    /// Toolbar items are dropped by hand as the window narrows. Letting AppKit
+    /// collect them into its overflow menu instead puts the one button that
+    /// must stay reachable — Copy — behind a chevron.
+    ///
+    /// Starts at zero, so the first frame of a narrow window is the small
+    /// toolbar rather than a full one that immediately collapses.
+    @State private var width: CGFloat = 0
+
     var body: some View {
         VStack(spacing: 0) {
             NoteEditorView(controller: document.editor)
             Divider()
             StatusBar(editor: document.editor, timer: document.timer)
         }
-        .frame(minWidth: 520, minHeight: 320)
+        .frame(minWidth: 420, minHeight: 320)
+        .background(WidthReader(width: $width))
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                TimerControls(timer: document.timer)
+                PlayPauseButton(timer: document.timer)
             }
-            ToolbarItem(placement: .principal) {
-                RemainingClock(timer: document.timer)
+            if width >= 620 {
+                ToolbarItem(placement: .navigation) {
+                    ResetButton(timer: document.timer)
+                }
             }
-            ToolbarItem(placement: .primaryAction) {
-                DetailControls(editor: document.editor)
+            ToolbarItem(placement: .navigation) {
+                TimerClock(timer: document.timer)
             }
             ToolbarItem(placement: .primaryAction) {
                 CopyStampsButton(editor: document.editor, copy: document.copyWithStamps)
@@ -38,56 +49,78 @@ struct ContentView: View {
     }
 }
 
-private struct TimerControls: View {
-    @ObservedObject var timer: TimerEngine
-    @State private var isSettingDuration = false
+/// Reports the window's content width without taking part in the layout.
+private struct WidthReader: View {
+    @Binding var width: CGFloat
 
     var body: some View {
-        HStack(spacing: 6) {
-            Button(action: timer.toggle) {
-                Image(systemName: timer.phase.isActive ? "pause.fill" : "play.fill")
-            }
-            .help(timer.phase.isActive ? "Pause the timer (⇧⌘P)" : "Start the timer (⇧⌘P)")
-
-            Button {
-                timer.reset()
-            } label: {
-                Image(systemName: "arrow.counterclockwise")
-            }
-            .disabled(timer.phase == .idle)
-            .help("Reset the timer (⇧⌘R)")
-
-            Button {
-                isSettingDuration = true
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "timer")
-                    Text(StampFormatter.string(for: timer.duration, format: .clock))
-                        .monospacedDigit()
-                }
-            }
-            .help("Set the timer duration")
-            .popover(isPresented: $isSettingDuration, arrowEdge: .bottom) {
-                DurationEditor(timer: timer)
-            }
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear { width = proxy.size.width }
+                .onChange(of: proxy.size.width) { width = $0 }
         }
     }
 }
 
-private struct RemainingClock: View {
+private struct PlayPauseButton: View {
     @ObservedObject var timer: TimerEngine
 
     var body: some View {
-        Text(StampFormatter.string(for: timer.remaining, format: .clock))
-            .font(.system(.title3, design: .monospaced))
-            .foregroundStyle(color)
-            .help(helpText)
+        Button(action: timer.toggle) {
+            // Titled, not just an icon: whatever the toolbar cannot fit ends up
+            // in the overflow menu, where a bare glyph says nothing.
+            Label(
+                timer.phase.isActive ? "Pause Timer" : "Start Timer",
+                systemImage: timer.phase.isActive ? "pause.fill" : "play.fill"
+            )
+        }
+        .help(timer.phase.isActive ? "Pause the timer (⇧⌘P)" : "Start the timer (⇧⌘P)")
+    }
+}
+
+private struct ResetButton: View {
+    @ObservedObject var timer: TimerEngine
+
+    var body: some View {
+        Button {
+            timer.reset()
+        } label: {
+            Label("Reset Timer", systemImage: "arrow.counterclockwise")
+        }
+        .disabled(timer.phase == .idle)
+        .help("Reset the timer (⇧⌘R)")
+    }
+}
+
+/// The one clock in the app: it counts down next to the transport buttons, and
+/// clicking it is how the duration is set. Nothing else in the toolbar repeats
+/// the number.
+private struct TimerClock: View {
+    @ObservedObject var timer: TimerEngine
+    @State private var isSettingDuration = false
+
+    var body: some View {
+        Button {
+            isSettingDuration = true
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "timer")
+                Text(StampFormatter.string(for: timer.remaining, format: .clock))
+                    .monospacedDigit()
+                    .foregroundStyle(color)
+            }
+        }
+        .help(helpText)
+        .popover(isPresented: $isSettingDuration, arrowEdge: .bottom) {
+            DurationEditor(timer: timer)
+        }
     }
 
+    /// Colour means "the clock is doing something". A stopped timer — never
+    /// started, or paused — is just a number, so it stays plain.
     private var color: Color {
         switch timer.phase {
-        case .idle: return .secondary
-        case .paused: return .orange
+        case .idle, .paused: return .secondary
         case .running: return .primary
         case .overtime: return .red
         }
@@ -95,40 +128,11 @@ private struct RemainingClock: View {
 
     private var helpText: String {
         switch timer.phase {
-        case .idle: return "Timer not started"
-        case .running: return "Time left"
-        case .paused: return "Paused"
-        case .overtime: return "Over the planned time"
+        case .idle: return "Timer not started — click to set the duration"
+        case .running: return "Time left — click to set the duration"
+        case .paused: return "Paused — click to set the duration"
+        case .overtime: return "Over the planned time — click to set the duration"
         }
-    }
-}
-
-/// The H / m / s buttons. They only change how stamps are rendered, so any
-/// combination can be turned on again later and the exact values come back.
-private struct DetailControls: View {
-    @ObservedObject var editor: NoteEditorController
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Toggle("H", isOn: $editor.format.hours)
-                .help("Show hours in line stamps (⌘1)")
-            Toggle("m", isOn: $editor.format.minutes)
-                .help("Show minutes in line stamps (⌘2)")
-            Toggle("s", isOn: $editor.format.seconds)
-                .help("Show seconds in line stamps (⌘3)")
-            Toggle(".1", isOn: $editor.format.subseconds)
-                .help("Show tenths of a second (⌘4)")
-                .disabled(!editor.format.seconds)
-
-            Button {
-                editor.format = .exact
-            } label: {
-                Image(systemName: "scope")
-            }
-            .help("Restore full precision (⌘0)")
-        }
-        .toggleStyle(.button)
-        .font(.system(size: 12, design: .monospaced))
     }
 }
 
@@ -149,7 +153,7 @@ private struct CopyStampsButton: View {
                 justCopied = false
             }
         } label: {
-            Image(systemName: justCopied ? "checkmark" : "doc.on.doc")
+            Label("Copy with Timestamps", systemImage: justCopied ? "checkmark" : "doc.on.doc")
         }
         .help(helpText)
     }
@@ -173,7 +177,7 @@ private struct StatusBar: View {
             Text(stampDescription)
                 .monospacedDigit()
             Spacer()
-            Text(editor.format.isEmpty ? "stamps hidden" : "detail: \(detailDescription)")
+            DetailMenu(format: $editor.format)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -188,12 +192,40 @@ private struct StatusBar: View {
         }
         return "started with \(StampFormatter.string(for: stamp.remaining, format: .exact)) left"
     }
+}
 
-    private var detailDescription: String {
+/// The detail level lives down here rather than in the toolbar. It is a setting
+/// touched rarely, the status bar already had to spell it out, and a menu of
+/// named units says far more than four cryptic letters ever did.
+private struct DetailMenu: View {
+    @Binding var format: StampFormat
+
+    var body: some View {
+        Menu {
+            Toggle("Hours", isOn: $format.hours)
+            Toggle("Minutes", isOn: $format.minutes)
+            Toggle("Seconds", isOn: $format.seconds)
+            Toggle("Tenths", isOn: $format.subseconds)
+                .disabled(!format.seconds)
+            Divider()
+            Button("Exact Time") { format = .exact }
+            Button("Minutes Only") { format = .minutesOnly }
+        } label: {
+            Text(title)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    private var title: String {
+        guard !format.isEmpty else { return "stamps hidden" }
+
         var units: [String] = []
-        if editor.format.hours { units.append("H") }
-        if editor.format.minutes { units.append("m") }
-        if editor.format.seconds { units.append(editor.format.subseconds ? "s.1" : "s") }
+        // Lowercase throughout: these are durations, not times of day, so the
+        // ICU distinction between H and h has nothing to say here.
+        if format.hours { units.append("h") }
+        if format.minutes { units.append("m") }
+        if format.seconds { units.append(format.subseconds ? "s.1" : "s") }
         return units.joined(separator: ":")
     }
 }

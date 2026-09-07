@@ -154,7 +154,10 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
     func stampText(forLine index: Int) -> String {
         guard !format.isEmpty else { return "" }
         guard let stamp = bookkeeper.stamp(forLine: index) else {
-            return StampFormatter.placeholder(for: format)
+            // An empty line has not been written on yet — it is waiting for its
+            // first character, and dashes there would only be noise.
+            let isEmpty = bookkeeper.paragraphs.range(forLine: index).length == 0
+            return isEmpty ? "" : StampFormatter.placeholder(for: format)
         }
         return StampFormatter.string(for: stamp.remaining, format: format)
     }
@@ -206,7 +209,7 @@ public final class NoteEditorController: NSObject, ObservableObject, NSTextViewD
     public func textDidChange(_ notification: Notification) {
         guard !isLoading else { return }
 
-        bookkeeper.commitEdit(newText: storage.string, stamp: timer?.currentStamp())
+        bookkeeper.commitEdit(newText: storage.string)
         refreshGutter(resize: false)
         updateCaretState()
         onChange?()

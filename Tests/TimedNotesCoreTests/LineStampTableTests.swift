@@ -6,23 +6,32 @@ final class LineStampTableTests: XCTestCase {
         LineStamp(remaining: remaining, wallClock: Date(timeIntervalSince1970: remaining))
     }
 
-    func testNewLineGetsTheCurrentStamp() {
+    func testACreatedLineTakesTheStampItIsGiven() {
         var table = LineStampTable()
         table.setStamp(stamp(3600), forLine: 0)
 
         // Enter pressed at the end of line 0.
-        table.applyEdit(startLine: 0, removedLineBreaks: 0, insertedLineBreaks: 1, newStamp: stamp(3540))
+        table.applyEdit(startLine: 0, removedLineBreaks: 0, insertedStamps: [stamp(3540)])
 
         XCTAssertEqual(table.lineCount, 2)
         XCTAssertEqual(table.stamp(forLine: 0), stamp(3600))
         XCTAssertEqual(table.stamp(forLine: 1), stamp(3540))
     }
 
+    func testACreatedLineCanStartWithoutAStamp() {
+        var table = LineStampTable()
+        table.setStamp(stamp(3600), forLine: 0)
+
+        table.applyEdit(startLine: 0, removedLineBreaks: 0, insertedStamps: [nil])
+
+        XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600, nil])
+    }
+
     func testEditingInsideALineKeepsItsStamp() {
         var table = LineStampTable()
         table.setStamp(stamp(3600), forLine: 0)
 
-        table.applyEdit(startLine: 0, removedLineBreaks: 0, insertedLineBreaks: 0, newStamp: stamp(1000))
+        table.applyEdit(startLine: 0, removedLineBreaks: 0, insertedStamps: [])
 
         XCTAssertEqual(table.stamp(forLine: 0), stamp(3600))
     }
@@ -31,7 +40,7 @@ final class LineStampTableTests: XCTestCase {
         var table = LineStampTable(stamps: [stamp(3600), stamp(3000)])
 
         // Enter pressed in the middle of line 0.
-        table.applyEdit(startLine: 0, removedLineBreaks: 0, insertedLineBreaks: 1, newStamp: stamp(2000))
+        table.applyEdit(startLine: 0, removedLineBreaks: 0, insertedStamps: [stamp(2000)])
 
         XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600, 2000, 3000])
     }
@@ -40,7 +49,7 @@ final class LineStampTableTests: XCTestCase {
         var table = LineStampTable(stamps: [stamp(3600), stamp(3000), stamp(2400)])
 
         // Backspace at the start of line 1 removes one line break.
-        table.applyEdit(startLine: 0, removedLineBreaks: 1, insertedLineBreaks: 0, newStamp: nil)
+        table.applyEdit(startLine: 0, removedLineBreaks: 1, insertedStamps: [])
 
         XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600, 2400])
     }
@@ -48,7 +57,11 @@ final class LineStampTableTests: XCTestCase {
     func testPastingSeveralLinesStampsAllOfThem() {
         var table = LineStampTable(stamps: [stamp(3600)])
 
-        table.applyEdit(startLine: 0, removedLineBreaks: 0, insertedLineBreaks: 3, newStamp: stamp(1800))
+        table.applyEdit(
+            startLine: 0,
+            removedLineBreaks: 0,
+            insertedStamps: [stamp(1800), stamp(1800), stamp(1800)]
+        )
 
         XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600, 1800, 1800, 1800])
     }
@@ -57,7 +70,7 @@ final class LineStampTableTests: XCTestCase {
         var table = LineStampTable(stamps: [stamp(3600), stamp(3000), stamp(2400), stamp(1200)])
 
         // Selection from line 0 through line 2 replaced by two lines of text.
-        table.applyEdit(startLine: 0, removedLineBreaks: 2, insertedLineBreaks: 1, newStamp: stamp(600))
+        table.applyEdit(startLine: 0, removedLineBreaks: 2, insertedStamps: [stamp(600)])
 
         XCTAssertEqual(table.stamps.map { $0?.remaining }, [3600, 600, 1200])
     }

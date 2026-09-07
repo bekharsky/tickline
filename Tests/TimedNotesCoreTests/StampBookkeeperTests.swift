@@ -16,7 +16,7 @@ private struct EditorHarness {
         let stamp = remaining.map { LineStamp(remaining: $0, wallClock: Date(timeIntervalSince1970: $0)) }
         bookkeeper.prepareEdit(currentText: text, affectedRange: range, replacement: string, stamp: stamp)
         text = (text as NSString).replacingCharacters(in: range, with: string)
-        bookkeeper.commitEdit(newText: text, stamp: stamp)
+        bookkeeper.commitEdit(newText: text)
         caret = range.location + (string as NSString).length
     }
 
@@ -30,16 +30,20 @@ private struct EditorHarness {
 }
 
 final class StampBookkeeperTests: XCTestCase {
-    func testEachNewLineStartsWithTheTimeLeftAtThatMoment() {
+    /// Return is not the start of a line — the first character is. Breaking the
+    /// line early and thinking for a while must not backdate what follows.
+    func testALineIsStampedWhenTheWritingStartsNotAtTheLineBreak() {
         var editor = EditorHarness()
         editor.type("first thought", remaining: 3600)
         editor.type("\n", remaining: 3570)
-        editor.type("second thought", remaining: 3569)
-        editor.type("\n", remaining: 3500)
-        editor.type("third", remaining: 3499)
+        XCTAssertEqual(editor.stamps, [3600, nil])
+
+        editor.type("second thought", remaining: 3400)
+        editor.type("\n", remaining: 3300)
+        editor.type("third", remaining: 3000)
 
         XCTAssertEqual(editor.lineTexts, ["first thought", "second thought", "third"])
-        XCTAssertEqual(editor.stamps, [3600, 3570, 3500])
+        XCTAssertEqual(editor.stamps, [3600, 3400, 3000])
     }
 
     func testKeepsTypingInsideALineOnTheOriginalStamp() {
@@ -52,7 +56,7 @@ final class StampBookkeeperTests: XCTestCase {
         editor.replace(NSRange(location: 5, length: 0), with: " there", remaining: 1000)
 
         XCTAssertEqual(editor.lineTexts, ["hello there", "world"])
-        XCTAssertEqual(editor.stamps, [3600, 3000])
+        XCTAssertEqual(editor.stamps, [3600, 2999])
     }
 
     func testTextWrittenBeforeTheTimerStaysUnstamped() {
@@ -60,14 +64,14 @@ final class StampBookkeeperTests: XCTestCase {
         editor.type("draft before start", remaining: nil)
         XCTAssertEqual(editor.stamps, [nil])
 
-        // Starting the timer and carrying on must not backdate the old line.
-        editor.type("!", remaining: 3600)
+        // The timer starts. Editing the old line must not backdate it.
         editor.replace(NSRange(location: 0, length: 5), with: "DRAFT", remaining: 3500)
         XCTAssertEqual(editor.stamps, [nil])
 
-        editor.type("\n", remaining: 3400)
+        // A line begun under the running timer does get a time.
+        editor.replace(NSRange(location: (editor.text as NSString).length, length: 0), with: "\n", remaining: 3400)
         editor.type("now the timer is running", remaining: 3399)
-        XCTAssertEqual(editor.stamps, [nil, 3400], "only lines started under the timer get stamps")
+        XCTAssertEqual(editor.stamps, [nil, 3399], "only lines written under the timer get stamps")
     }
 
     /// The first line of a fresh note is empty, so writing on it is where it
@@ -79,13 +83,28 @@ final class StampBookkeeperTests: XCTestCase {
         XCTAssertEqual(editor.stamps, [3600])
     }
 
-    func testTrailingNewlineLeavesAStampedEmptyLineToWriteOn() {
+    func testTrailingNewlineLeavesAnEmptyLineWaitingForItsFirstWord() {
         var editor = EditorHarness()
         editor.type("done", remaining: 3600)
         editor.type("\n", remaining: 3540)
 
         XCTAssertEqual(editor.lineTexts, ["done", ""])
-        XCTAssertEqual(editor.stamps, [3600, 3540])
+        XCTAssertEqual(editor.stamps, [3600, nil])
+
+        editor.type("more", remaining: 3100)
+        XCTAssertEqual(editor.stamps, [3600, 3100])
+    }
+
+    /// Blank lines used as spacing are never written on, so they stay blank in
+    /// the gutter too.
+    func testBlankLinesLeftBetweenParagraphsStayUnstamped() {
+        var editor = EditorHarness()
+        editor.type("above", remaining: 3600)
+        editor.type("\n\n", remaining: 3500)
+        editor.type("below", remaining: 3400)
+
+        XCTAssertEqual(editor.lineTexts, ["above", "", "below"])
+        XCTAssertEqual(editor.stamps, [3600, nil, 3400])
     }
 
     func testDeletingALineBreakMergesIntoTheEarlierLine() {
@@ -108,7 +127,7 @@ final class StampBookkeeperTests: XCTestCase {
         editor.type("a\nb\nc", remaining: 3580)
 
         XCTAssertEqual(editor.lineTexts, ["intro", "a", "b", "c"])
-        XCTAssertEqual(editor.stamps, [3600, 3590, 3580, 3580])
+        XCTAssertEqual(editor.stamps, [3600, 3580, 3580, 3580])
     }
 
     func testSplittingAnOldLineStampsOnlyTheNewTail() {
@@ -141,10 +160,10 @@ final class StampBookkeeperTests: XCTestCase {
         editor.type("\n", remaining: -12.5)
         editor.type("past the deadline", remaining: -13)
 
-        XCTAssertEqual(editor.stamps, [5, -12.5])
+        XCTAssertEqual(editor.stamps, [5, -13])
         XCTAssertEqual(
             StampFormatter.string(for: editor.stamps[1] ?? 0, format: .clock),
-            "-00:00:12"
+            "-00:00:13"
         )
     }
 
@@ -169,7 +188,7 @@ final class StampBookkeeperTests: XCTestCase {
 
         XCTAssertEqual(restored.lineCount, 2)
         XCTAssertEqual(restored.stamp(forLine: 0)?.remaining, 3600)
-        XCTAssertEqual(restored.stamp(forLine: 1)?.remaining, 3400)
+        XCTAssertEqual(restored.stamp(forLine: 1)?.remaining, 3399)
         XCTAssertEqual(
             NoteExporter.plainText(lines: lines, format: .minutesOnly),
             "[60] one\n[56] two"

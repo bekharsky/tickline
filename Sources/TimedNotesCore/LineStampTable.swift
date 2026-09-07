@@ -29,20 +29,17 @@ public struct LineStampTable: Equatable {
     /// Mirrors a text edit onto the stamp list.
     ///
     /// The paragraph the edit starts in keeps its own stamp — editing a line
-    /// does not restamp it. Paragraphs that the edit swallows disappear, and
-    /// every paragraph the edit creates gets `newStamp`, which is the reason a
-    /// fresh line begins with the current remaining time.
+    /// does not restamp it. Paragraphs that the edit swallows disappear, and the
+    /// ones it creates take `insertedStamps`, one entry per new paragraph.
     public mutating func applyEdit(
         startLine: Int,
         removedLineBreaks: Int,
-        insertedLineBreaks: Int,
-        newStamp: LineStamp?
+        insertedStamps: [LineStamp?]
     ) {
         let clampedStart = max(0, min(startLine, stamps.count - 1))
         let removalStart = min(clampedStart + 1, stamps.count)
         let removalEnd = min(removalStart + max(0, removedLineBreaks), stamps.count)
-        let inserted = Array(repeating: newStamp, count: max(0, insertedLineBreaks))
-        stamps.replaceSubrange(removalStart..<removalEnd, with: inserted)
+        stamps.replaceSubrange(removalStart..<removalEnd, with: insertedStamps)
     }
 
     /// Safety net against drift between the text and the stamp list.

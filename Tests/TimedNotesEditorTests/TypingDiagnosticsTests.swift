@@ -66,6 +66,21 @@ final class TypingTests: XCTestCase {
         XCTAssertNotEqual(controller.stampText(forLine: 1), "--:--:--")
     }
 
+    /// Return alone is not writing: the fresh line stays blank in the gutter
+    /// until the first character lands on it.
+    func testAFreshLineWaitsForItsFirstCharacterBeforeShowingATime() {
+        let controller = makeController()
+        _ = timerRunning(on: controller)
+        let textView = controller.textView
+
+        textView.insertText("first", replacementRange: NSRange(location: 0, length: 0))
+        textView.insertNewline(nil)
+        XCTAssertEqual(controller.stampText(forLine: 1), "", "an empty line has nothing to show yet")
+
+        textView.insertText("second", replacementRange: textView.selectedRange())
+        XCTAssertFalse(controller.stampText(forLine: 1).isEmpty)
+    }
+
     /// ⌘⏎ breaks the line but stays on the same stamp.
     func testCommandReturnKeepsTheLineAndItsStamp() throws {
         let controller = makeController()

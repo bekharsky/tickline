@@ -59,6 +59,22 @@ public struct ParagraphIndex: Equatable {
         return count
     }
 
+    /// The same split as `compute`, but on a loose string — used to tell what
+    /// text an edit puts on each paragraph it creates.
+    public static func paragraphs(in string: String) -> [String] {
+        let text = string as NSString
+        var parts: [String] = []
+        var start = 0
+
+        enumerateHardBreaks(in: text) { breakStart, nextStart in
+            parts.append(text.substring(with: NSRange(location: start, length: breakStart - start)))
+            start = nextStart
+        }
+
+        parts.append(text.substring(from: start))
+        return parts
+    }
+
     private static func compute(_ string: String) -> [NSRange] {
         let text = string as NSString
         var ranges: [NSRange] = []

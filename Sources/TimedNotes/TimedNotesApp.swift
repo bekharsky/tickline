@@ -9,9 +9,7 @@ struct TimedNotesApp: App {
     }
 
     var body: some Scene {
-        // SwiftUI creates documents on the main thread; saying so keeps the
-        // main-actor document out of a nonisolated closure.
-        DocumentGroup(newDocument: { MainActor.assumeIsolated { TimedNoteDocument() } }) { configuration in
+        DocumentGroup(newDocument: { TimedNoteDocument() }) { configuration in
             ContentView(document: configuration.document)
         }
         .commands {

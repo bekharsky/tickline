@@ -87,14 +87,18 @@ public struct StampBookkeeper {
         table.applyEdit(
             startLine: startLine,
             removedLineBreaks: ParagraphIndex.lineBreakCount(in: text.substring(with: clampedRange)),
-            insertedLineBreaks: ParagraphIndex.lineBreakCount(in: replacement),
-            newStamp: stamp
+            insertedStamps: stampsForLinesCreated(
+                by: replacement,
+                endingWith: remainderOfLine(after: clampedRange, in: text),
+                stamp: stamp
+            )
         )
 
-        // An empty line gets its stamp from the first thing written on it — that
-        // is how the very first line of a note is stamped. A line that already
-        // holds text keeps whatever it has, so text written before the timer
-        // stays unstamped no matter how much it is edited later.
+        // An empty line gets its stamp from the first thing written on it. That
+        // is how a line the writer opened with Return, and only later filled in,
+        // gets the time it was actually written. A line that already holds text
+        // keeps whatever it has, so anything written before the timer stays
+        // unstamped no matter how much it is edited afterwards.
         if !replacement.isEmpty,
            table.stamp(forLine: startLine) == nil,
            paragraphs.range(forLine: startLine).length == 0,
@@ -103,12 +107,41 @@ public struct StampBookkeeper {
         }
     }
 
-    public mutating func commitEdit(newText: String, stamp: LineStamp?) {
+    public mutating func commitEdit(newText: String) {
         paragraphs.update(text: newText)
-        table.ensureCount(paragraphs.count, filler: stamp)
+        table.ensureCount(paragraphs.count, filler: nil)
     }
 
     public mutating func reset(lines: [NoteSnapshot.Line]) {
         self = StampBookkeeper(lines: lines)
+    }
+
+    /// A line created by an edit is stamped only when the edit puts text on it.
+    /// Pressing Return leaves an empty line behind, and that line waits for its
+    /// first character before taking a time — writers break the line long before
+    /// they know what goes on it.
+    private func stampsForLinesCreated(
+        by replacement: String,
+        endingWith remainder: String,
+        stamp: LineStamp?
+    ) -> [LineStamp?] {
+        let parts = ParagraphIndex.paragraphs(in: replacement)
+        guard parts.count > 1 else { return [] }
+
+        return parts.dropFirst().enumerated().map { offset, part in
+            let isLast = offset == parts.count - 2
+            let content = isLast ? part + remainder : part
+            return content.isEmpty ? nil : stamp
+        }
+    }
+
+    /// What is left of the edited paragraph behind the replaced range. It slides
+    /// onto the last line the edit creates, so that line counts as written.
+    private func remainderOfLine(after range: NSRange, in text: NSString) -> String {
+        let start = NSMaxRange(range)
+        let paragraph = paragraphs.range(forLine: paragraphs.index(forCharacterAt: start))
+        let end = min(NSMaxRange(paragraph), text.length)
+        guard start <= end else { return "" }
+        return text.substring(with: NSRange(location: start, length: end - start))
     }
 }

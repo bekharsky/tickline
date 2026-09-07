@@ -81,6 +81,24 @@ final class MarkdownNoteTests: XCTestCase {
         XCTAssertEqual(StampFormatter.string(for: stamp?.remaining ?? 0, format: .exact), "00:45:18.3")
     }
 
+    /// Units used to be written with a capital H. Those notes are on disk and
+    /// must keep every unit they were saved with.
+    func testDetailWrittenBeforeTheUnitsWentLowercaseStillReads() {
+        let restored = MarkdownNote.snapshot(
+            from: """
+            ---
+            timer: 01:00:00
+            detail: H:m:s.1
+            ---
+
+            [00:59:56.246] first thought
+
+            """
+        )
+
+        XCTAssertEqual(restored.format, .exact)
+    }
+
     func testSoftBreaksSurviveTheRoundTrip() {
         let soft = String(ParagraphIndex.softLineBreak)
         let original = snapshot(

@@ -9,7 +9,7 @@ import Foundation
 /// ---
 /// timer: 01:00:00
 /// remaining: 00:53:12.400
-/// detail: H:m
+/// detail: h:m
 /// ---
 ///
 /// [00:59:56.246] first thought
@@ -127,16 +127,18 @@ public enum MarkdownNote {
 
     private static func detailField(_ format: StampFormat) -> String {
         var units: [String] = []
-        if format.hours { units.append("H") }
+        if format.hours { units.append("h") }
         if format.minutes { units.append("m") }
         if format.seconds { units.append(format.subseconds ? "s.1" : "s") }
         return units.isEmpty ? "none" : units.joined(separator: ":")
     }
 
+    /// Case-insensitive: notes written before the units went lowercase say
+    /// `H:m:s`, and they have to keep opening the same way.
     private static func detail(from value: String) -> StampFormat {
-        let units = value.split(separator: ":").map { $0.trimmingCharacters(in: .whitespaces) }
+        let units = value.lowercased().split(separator: ":").map { $0.trimmingCharacters(in: .whitespaces) }
         return StampFormat(
-            hours: units.contains("H"),
+            hours: units.contains("h"),
             minutes: units.contains("m"),
             seconds: units.contains { $0.hasPrefix("s") },
             subseconds: units.contains("s.1")
